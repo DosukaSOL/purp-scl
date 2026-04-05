@@ -1,0 +1,91 @@
+// On-Chain Game Template
+
+program GameContract {
+
+  account GameState {
+    authority: pubkey,
+    player_count: u32,
+    round: u32,
+    is_active: bool,
+    prize_pool: u64
+  }
+
+  account Player {
+    wallet: pubkey,
+    score: u64,
+    health: u32,
+    level: u8,
+    joined_at: i64
+  }
+
+  pub instruction create_game(
+    #[mut] signer authority,
+    #[init] account game
+  ) {
+    game.authority = authority;
+    game.player_count = 0;
+    game.round = 1;
+    game.is_active = true;
+    game.prize_pool = 0;
+  }
+
+  pub instruction join_game(
+    #[mut] signer player_wallet,
+    #[mut] account game,
+    #[init] account player,
+    entry_fee: u64
+  ) {
+    player.wallet = player_wallet;
+    player.score = 0;
+    player.health = 100;
+    player.level = 1;
+    game.player_count += 1;
+    game.prize_pool += entry_fee;
+    emit PlayerJoined(player_wallet, game.player_count);
+  }
+
+  pub instruction submit_action(
+    #[mut] signer player_wallet,
+    #[mut] account game,
+    #[mut] account player,
+    action_type: u8,
+    action_data: u64
+  ) {
+    assert(game.is_active, "Game is not active");
+    assert(player.wallet == player_wallet, "Not your player");
+    assert(player.health > 0, "Player is dead");
+
+    if action_type == 1 {
+      player.score += action_data;
+    } else if action_type == 2 {
+      player.health -= action_data as u32;
+    }
+
+    emit ActionSubmitted(player_wallet, action_type, action_data);
+  }
+
+  pub instruction end_round(
+    #[mut] signer authority,
+    #[mut] account game
+  ) {
+    assert(game.authority == authority, "Only authority can end round");
+    game.round += 1;
+    emit RoundEnded(game.round);
+  }
+
+  pub instruction claim_prize(
+    #[mut] signer winner,
+    #[mut] account game,
+    account player
+  ) {
+    assert(game.is_active == false, "Game still active");
+    let prize = game.prize_pool;
+    game.prize_pool = 0;
+    emit PrizeClaimed(winner, prize);
+  }
+
+  event PlayerJoined { player: pubkey, total_players: u32 }
+  event ActionSubmitted { player: pubkey, action_type: u8, data: u64 }
+  event RoundEnded { round: u32 }
+  event PrizeClaimed { winner: pubkey, amount: u64 }
+}

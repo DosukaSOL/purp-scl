@@ -1,0 +1,37 @@
+// NFT Mint Template — Create and mint NFTs on Solana
+
+program NFTMinter {
+
+  account NFTMetadata {
+    creator: pubkey,
+    name: string,
+    symbol: string,
+    uri: string,
+    seller_fee_basis_points: u16,
+    is_minted: bool
+  }
+
+  pub instruction create_nft(
+    #[mut] signer creator,
+    #[init] mint nft_mint,
+    #[init] account metadata,
+    name: string,
+    symbol: string,
+    uri: string
+  ) {
+    nft_mint.decimals = 0;
+    metadata.creator = creator;
+    metadata.name = name;
+    metadata.symbol = symbol;
+    metadata.uri = uri;
+    metadata.seller_fee_basis_points = 500;
+    metadata.is_minted = true;
+    emit NFTCreated(creator, name, uri);
+  }
+
+  event NFTCreated {
+    creator: pubkey,
+    name: string,
+    uri: string
+  }
+}

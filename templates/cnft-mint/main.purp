@@ -1,0 +1,38 @@
+// Compressed NFT Template — Mint cNFTs on Solana
+
+program CompressedNFTs {
+
+  account TreeConfig {
+    authority: pubkey,
+    merkle_tree: pubkey,
+    max_depth: u32,
+    max_buffer_size: u32,
+    num_minted: u64
+  }
+
+  pub instruction create_tree(
+    #[mut] signer authority,
+    #[init] account tree_config
+  ) {
+    tree_config.authority = authority;
+    tree_config.max_depth = 14;
+    tree_config.max_buffer_size = 64;
+    tree_config.num_minted = 0;
+  }
+
+  pub instruction mint_cnft(
+    #[mut] signer authority,
+    #[mut] account tree_config,
+    name: string,
+    uri: string
+  ) {
+    tree_config.num_minted += 1;
+    emit CNFTMinted(authority, name, tree_config.num_minted);
+  }
+
+  event CNFTMinted {
+    creator: pubkey,
+    name: string,
+    index: u64
+  }
+}

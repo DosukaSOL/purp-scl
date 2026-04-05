@@ -1,0 +1,48 @@
+// Example: Creating a Token on Solana with Purp
+
+import { Token } from "@purp/stdlib";
+
+program TokenCreation {
+
+  account MintAuthority {
+    authority: pubkey,
+    total_supply: u64,
+    decimals: u8
+  }
+
+  pub instruction create_token(
+    #[mut] signer authority,
+    #[init] account mint_auth,
+    decimals: u8,
+    initial_supply: u64
+  ) {
+    mint_auth.authority = authority;
+    mint_auth.decimals = decimals;
+    mint_auth.total_supply = initial_supply;
+    emit TokenCreated(authority, decimals, initial_supply);
+  }
+
+  pub instruction mint_tokens(
+    #[mut] signer authority,
+    #[mut] account mint_auth,
+    recipient: pubkey,
+    amount: u64
+  ) {
+    assert(mint_auth.authority == authority, "Not the mint authority");
+    mint_auth.total_supply += amount;
+    emit TokensMinted(recipient, amount);
+  }
+
+  pub instruction burn_tokens(
+    #[mut] signer holder,
+    #[mut] account mint_auth,
+    amount: u64
+  ) {
+    mint_auth.total_supply -= amount;
+    emit TokensBurned(holder, amount);
+  }
+
+  event TokenCreated { authority: pubkey, decimals: u8, supply: u64 }
+  event TokensMinted { recipient: pubkey, amount: u64 }
+  event TokensBurned { holder: pubkey, amount: u64 }
+}

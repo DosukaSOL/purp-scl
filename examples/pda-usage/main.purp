@@ -1,0 +1,62 @@
+// Example: Using PDAs (Program Derived Addresses) in Purp
+
+program PdaUsage {
+
+  // PDA-backed account: seeds derive the address deterministically
+  account UserVault {
+    owner: pubkey,
+    balance: u64,
+    bump: u8
+  }
+
+  account GlobalCounter {
+    count: u64
+  }
+
+  // Derive a PDA using seeds = [b"vault", user pubkey]
+  pub instruction create_vault(
+    #[mut] signer user,
+    #[init] account vault,  // PDA: seeds = ["vault", user]
+    bump: u8
+  ) {
+    vault.owner = user;
+    vault.balance = 0;
+    vault.bump = bump;
+    emit VaultCreated(user);
+  }
+
+  pub instruction deposit(
+    #[mut] signer user,
+    #[mut] account vault,
+    amount: u64
+  ) {
+    assert(vault.owner == user, "Not vault owner");
+    vault.balance += amount;
+    emit Deposited(user, amount);
+  }
+
+  pub instruction withdraw(
+    #[mut] signer user,
+    #[mut] account vault,
+    amount: u64
+  ) {
+    assert(vault.owner == user, "Not vault owner");
+    assert(vault.balance >= amount, "Insufficient balance");
+    vault.balance -= amount;
+    emit Withdrawn(user, amount);
+  }
+
+  // PDA with multiple seeds: ["counter", program_id]
+  pub instruction increment_counter(
+    #[mut] signer authority,
+    #[mut] account counter  // PDA: seeds = ["counter"]
+  ) {
+    counter.count += 1;
+    emit CounterIncremented(counter.count);
+  }
+
+  event VaultCreated { user: pubkey }
+  event Deposited { user: pubkey, amount: u64 }
+  event Withdrawn { user: pubkey, amount: u64 }
+  event CounterIncremented { count: u64 }
+}

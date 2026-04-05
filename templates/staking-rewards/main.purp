@@ -1,0 +1,65 @@
+// Staking & Rewards Template
+
+program StakingRewards {
+
+  account StakePool {
+    authority: pubkey,
+    reward_rate: u64,
+    total_staked: u64,
+    last_update: i64
+  }
+
+  account StakeAccount {
+    owner: pubkey,
+    amount: u64,
+    reward_debt: u64,
+    staked_at: i64
+  }
+
+  pub instruction initialize_pool(
+    #[mut] signer authority,
+    #[init] account pool,
+    reward_rate: u64
+  ) {
+    pool.authority = authority;
+    pool.reward_rate = reward_rate;
+    pool.total_staked = 0;
+  }
+
+  pub instruction stake(
+    #[mut] signer user,
+    #[mut] account pool,
+    #[init] account stake_account,
+    amount: u64
+  ) {
+    stake_account.owner = user;
+    stake_account.amount = amount;
+    pool.total_staked += amount;
+    emit Staked(user, amount);
+  }
+
+  pub instruction unstake(
+    #[mut] signer user,
+    #[mut] account pool,
+    #[mut] account stake_account
+  ) {
+    let amount = stake_account.amount;
+    pool.total_staked -= amount;
+    stake_account.amount = 0;
+    emit Unstaked(user, amount);
+  }
+
+  pub instruction claim_rewards(
+    #[mut] signer user,
+    #[mut] account pool,
+    #[mut] account stake_account
+  ) {
+    let rewards = stake_account.amount * pool.reward_rate;
+    stake_account.reward_debt += rewards;
+    emit RewardsClaimed(user, rewards);
+  }
+
+  event Staked { user: pubkey, amount: u64 }
+  event Unstaked { user: pubkey, amount: u64 }
+  event RewardsClaimed { user: pubkey, amount: u64 }
+}

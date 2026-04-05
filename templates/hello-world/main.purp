@@ -1,0 +1,31 @@
+// Hello World — Your first Purp program
+// Compile with: purp build
+
+program HelloWorld("11111111111111111111111111111111") {
+
+  account GreetingAccount {
+    count: u64,
+    message: string
+  }
+
+  pub instruction initialize(
+    #[mut] signer payer,
+    #[init] account greeting
+  ) {
+    greeting.count = 0;
+    greeting.message = "Hello, Purp!";
+  }
+
+  pub instruction greet(
+    signer user,
+    #[mut] account greeting
+  ) {
+    greeting.count += 1;
+    emit GreetEvent(user, greeting.count);
+  }
+
+  event GreetEvent {
+    user: pubkey,
+    count: u64
+  }
+}

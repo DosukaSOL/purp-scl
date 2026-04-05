@@ -1,0 +1,119 @@
+// Fullstack dApp Template — On-chain + Client + Frontend
+
+import { Token, Wallet } from "@purp/stdlib";
+
+program FullstackDapp {
+
+  account AppState {
+    authority: pubkey,
+    item_count: u64,
+    treasury: pubkey
+  }
+
+  account Item {
+    creator: pubkey,
+    title: string,
+    price: u64,
+    is_listed: bool,
+    created_at: i64
+  }
+
+  pub instruction initialize(
+    #[mut] signer authority,
+    #[init] account state,
+    treasury: pubkey
+  ) {
+    state.authority = authority;
+    state.item_count = 0;
+    state.treasury = treasury;
+  }
+
+  pub instruction create_item(
+    #[mut] signer creator,
+    #[mut] account state,
+    #[init] account item,
+    title: string,
+    price: u64
+  ) {
+    item.creator = creator;
+    item.title = title;
+    item.price = price;
+    item.is_listed = true;
+    state.item_count += 1;
+    emit ItemCreated(creator, title, price);
+  }
+
+  pub instruction purchase_item(
+    #[mut] signer buyer,
+    #[mut] account item,
+    #[mut] account state
+  ) {
+    assert(item.is_listed, "Item not listed");
+    item.is_listed = false;
+    emit ItemPurchased(buyer, item.title, item.price);
+  }
+
+  event ItemCreated { creator: pubkey, title: string, price: u64 }
+  event ItemPurchased { buyer: pubkey, title: string, price: u64 }
+}
+
+client {
+  async fn getItems(program): Item[] {
+    return await program.account.Item.all();
+  }
+
+  async fn getState(program): AppState {
+    return await program.account.AppState.fetch();
+  }
+}
+
+frontend {
+  page "/" {
+    component App {
+      state items = [];
+      state connected = false;
+
+      on_mount {
+        items = await client.getItems(program);
+      }
+
+      render {
+        <div class="app">
+          <header>
+            <h1>"Purp Marketplace"</h1>
+            <WalletButton on_connect={ connected = true } />
+          </header>
+          <main>
+            <ItemGrid items={items} />
+          </main>
+        </div>
+      }
+    }
+
+    component ItemGrid(items: Item[]) {
+      render {
+        <div class="grid">
+          {items.map(item => <ItemCard item={item} />)}
+        </div>
+      }
+    }
+
+    component ItemCard(item: Item) {
+      render {
+        <div class="card">
+          <h3>{item.title}</h3>
+          <p>{item.price} " SOL"</p>
+          <button on_click={ client.purchaseItem(item) }>
+            "Buy Now"
+          </button>
+        </div>
+      }
+    }
+  }
+}
+
+config {
+  name = "fullstack-dapp"
+  version = "0.1.0"
+  network = "devnet"
+}

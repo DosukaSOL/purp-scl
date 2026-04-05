@@ -1,0 +1,169 @@
+// AI + Solana App Template
+
+import { Token, Wallet } from "@purp/stdlib";
+
+program AiSolanaApp {
+
+  account ModelRegistry {
+    authority: pubkey,
+    model_count: u64
+  }
+
+  account Model {
+    owner: pubkey,
+    name: string,
+    model_hash: string,
+    version: u32,
+    usage_count: u64,
+    price_per_call: u64,
+    is_active: bool
+  }
+
+  account InferenceRequest {
+    requester: pubkey,
+    model: pubkey,
+    input_hash: string,
+    output_hash: string,
+    status: u8,
+    timestamp: i64
+  }
+
+  pub instruction initialize(
+    #[mut] signer authority,
+    #[init] account registry
+  ) {
+    registry.authority = authority;
+    registry.model_count = 0;
+  }
+
+  pub instruction register_model(
+    #[mut] signer owner,
+    #[mut] account registry,
+    #[init] account model,
+    name: string,
+    model_hash: string,
+    price_per_call: u64
+  ) {
+    model.owner = owner;
+    model.name = name;
+    model.model_hash = model_hash;
+    model.version = 1;
+    model.usage_count = 0;
+    model.price_per_call = price_per_call;
+    model.is_active = true;
+    registry.model_count += 1;
+    emit ModelRegistered(owner, name, model_hash);
+  }
+
+  pub instruction request_inference(
+    #[mut] signer requester,
+    #[mut] account model,
+    #[init] account request,
+    input_hash: string
+  ) {
+    assert(model.is_active, "Model is not active");
+    request.requester = requester;
+    request.model = model;
+    request.input_hash = input_hash;
+    request.output_hash = "";
+    request.status = 0;
+    model.usage_count += 1;
+    emit InferenceRequested(requester, model, input_hash);
+  }
+
+  pub instruction fulfill_inference(
+    #[mut] signer oracle,
+    #[mut] account request,
+    account model,
+    output_hash: string
+  ) {
+    assert(request.status == 0, "Already fulfilled");
+    request.output_hash = output_hash;
+    request.status = 1;
+    emit InferenceFulfilled(request.requester, model, output_hash);
+  }
+
+  event ModelRegistered { owner: pubkey, name: string, hash: string }
+  event InferenceRequested { requester: pubkey, model: pubkey, input: string }
+  event InferenceFulfilled { requester: pubkey, model: pubkey, output: string }
+}
+
+client {
+  async fn getModels(program): Model[] {
+    return await program.account.Model.all();
+  }
+
+  async fn getRequests(program, requester: pubkey): InferenceRequest[] {
+    return await program.account.InferenceRequest.all({ requester });
+  }
+}
+
+frontend {
+  page "/" {
+    component AiHub {
+      state models = [];
+      state selected = null;
+
+      on_mount {
+        models = await client.getModels(program);
+      }
+
+      render {
+        <div class="ai-hub">
+          <header>
+            <h1>"AI x Solana Hub"</h1>
+            <WalletButton />
+          </header>
+          <main>
+            <ModelList models={models} on_select={m => selected = m} />
+            {selected != null ?
+              <InferencePanel model={selected} /> :
+              <p>"Select a model to run inference"</p>
+            }
+          </main>
+        </div>
+      }
+    }
+
+    component ModelList(models: Model[], on_select: fn) {
+      render {
+        <div class="model-list">
+          {models.map(m =>
+            <div class="model-card" on_click={ on_select(m) }>
+              <h3>{m.name}</h3>
+              <p>"Uses: " {m.usage_count}</p>
+              <p>"Price: " {m.price_per_call} " lamports/call"</p>
+            </div>
+          )}
+        </div>
+      }
+    }
+
+    component InferencePanel(model: Model) {
+      state input = "";
+      state result = null;
+
+      render {
+        <div class="inference">
+          <h2>"Run Inference: " {model.name}</h2>
+          <textarea bind={input} placeholder="Enter input data..." />
+          <button on_click={
+            result = await client.requestInference(program, signer, model, input);
+          }>"Submit"</button>
+          {result != null ?
+            <div class="result">
+              <h3>"Result"</h3>
+              <pre>{result}</pre>
+            </div> : null
+          }
+        </div>
+      }
+    }
+  }
+}
+
+config {
+  name = "ai-solana-app"
+  version = "0.1.0"
+  network = "devnet"
+}

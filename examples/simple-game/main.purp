@@ -1,0 +1,85 @@
+// Example: Simple On-Chain Game
+
+program SimpleGame {
+
+  account Game {
+    host: pubkey,
+    challenger: pubkey,
+    host_choice: u8,
+    challenger_choice: u8,
+    winner: pubkey,
+    status: u8,  // 0 = waiting, 1 = both played, 2 = resolved
+    bet_amount: u64
+  }
+
+  pub instruction create_game(
+    #[mut] signer host,
+    #[init] account game,
+    bet_amount: u64
+  ) {
+    game.host = host;
+    game.status = 0;
+    game.bet_amount = bet_amount;
+    game.host_choice = 0;
+    game.challenger_choice = 0;
+    emit GameCreated(host, bet_amount);
+  }
+
+  pub instruction join_game(
+    #[mut] signer challenger,
+    #[mut] account game
+  ) {
+    assert(game.status == 0, "Game not joinable");
+    game.challenger = challenger;
+    emit PlayerJoined(challenger);
+  }
+
+  // choice: 1 = Rock, 2 = Paper, 3 = Scissors
+  pub instruction play(
+    #[mut] signer player,
+    #[mut] account game,
+    choice: u8
+  ) {
+    assert(choice >= 1, "Invalid choice");
+    assert(choice <= 3, "Invalid choice");
+
+    if player == game.host {
+      game.host_choice = choice;
+    } else if player == game.challenger {
+      game.challenger_choice = choice;
+    }
+
+    if game.host_choice > 0 && game.challenger_choice > 0 {
+      game.status = 1;
+    }
+  }
+
+  pub instruction resolve(
+    #[mut] signer anyone,
+    #[mut] account game
+  ) {
+    assert(game.status == 1, "Not ready to resolve");
+
+    let h = game.host_choice;
+    let c = game.challenger_choice;
+
+    // RPS logic: 1 beats 3, 2 beats 1, 3 beats 2
+    if h == c {
+      // Draw — refund both
+      emit GameDraw(game.host, game.challenger);
+    } else if (h == 1 && c == 3) || (h == 2 && c == 1) || (h == 3 && c == 2) {
+      game.winner = game.host;
+      emit GameWon(game.host, game.bet_amount * 2);
+    } else {
+      game.winner = game.challenger;
+      emit GameWon(game.challenger, game.bet_amount * 2);
+    }
+
+    game.status = 2;
+  }
+
+  event GameCreated { host: pubkey, bet: u64 }
+  event PlayerJoined { challenger: pubkey }
+  event GameDraw { player1: pubkey, player2: pubkey }
+  event GameWon { winner: pubkey, prize: u64 }
+}

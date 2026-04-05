@@ -1,0 +1,55 @@
+// Example: Minting an NFT on Solana with Purp
+
+import { NFT } from "@purp/stdlib";
+
+program NftMintExample {
+
+  account Collection {
+    authority: pubkey,
+    name: string,
+    symbol: string,
+    total_minted: u64,
+    max_supply: u64
+  }
+
+  account NftMetadata {
+    collection: pubkey,
+    owner: pubkey,
+    name: string,
+    uri: string,
+    mint_number: u64
+  }
+
+  pub instruction create_collection(
+    #[mut] signer authority,
+    #[init] account collection,
+    name: string,
+    symbol: string,
+    max_supply: u64
+  ) {
+    collection.authority = authority;
+    collection.name = name;
+    collection.symbol = symbol;
+    collection.total_minted = 0;
+    collection.max_supply = max_supply;
+  }
+
+  pub instruction mint_nft(
+    #[mut] signer minter,
+    #[mut] account collection,
+    #[init] account metadata,
+    name: string,
+    uri: string
+  ) {
+    assert(collection.total_minted < collection.max_supply, "Max supply reached");
+    collection.total_minted += 1;
+    metadata.collection = collection;
+    metadata.owner = minter;
+    metadata.name = name;
+    metadata.uri = uri;
+    metadata.mint_number = collection.total_minted;
+    emit NftMinted(minter, name, collection.total_minted);
+  }
+
+  event NftMinted { owner: pubkey, name: string, number: u64 }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "purp-scl",
+  "version": "0.1.0",
+  "description": "Purp — The Solana Coding Language. A Solana-native programming language and full-stack developer platform.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "bin": {
+    "purp": "./dist/cli/src/index.js"
+  },
+  "directories": {
+    "doc": "docs",
+    "example": "examples",
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "node --test tests/**/*.test.ts",
+    "test:compiler": "node --test tests/compiler/**/*.test.ts",
+    "test:cli": "node --test tests/cli/**/*.test.ts",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build",
+    "purp": "node dist/cli/src/index.js"
+  },
+  "keywords": [
+    "solana", "blockchain", "programming-language", "compiler",
+    "transpiler", "smart-contracts", "defi", "nft", "web3", "purp"
+  ],
+  "author": "Purp Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/purp-lang/purp"
+  },
+  "homepage": "https://purplang.dev",
+  "bugs": {
+    "url": "https://github.com/purp-lang/purp/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "typescript": "^6.0.2"
+  }
+}

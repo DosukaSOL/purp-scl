@@ -1,0 +1,96 @@
+// Example: Staking Rewards System
+
+program RewardsSystem {
+
+  account Pool {
+    authority: pubkey,
+    reward_mint: pubkey,
+    reward_rate: u64,
+    total_staked: u64,
+    accumulated_reward_per_share: u128,
+    last_update_timestamp: i64
+  }
+
+  account Staker {
+    owner: pubkey,
+    pool: pubkey,
+    amount_staked: u64,
+    reward_debt: u128,
+    pending_rewards: u64
+  }
+
+  pub instruction initialize_pool(
+    #[mut] signer authority,
+    #[init] account pool,
+    reward_mint: pubkey,
+    reward_rate: u64
+  ) {
+    pool.authority = authority;
+    pool.reward_mint = reward_mint;
+    pool.reward_rate = reward_rate;
+    pool.total_staked = 0;
+    pool.accumulated_reward_per_share = 0;
+  }
+
+  pub instruction stake(
+    #[mut] signer user,
+    #[mut] account pool,
+    #[init] account staker,
+    amount: u64
+  ) {
+    // Update pool rewards before state change
+    staker.owner = user;
+    staker.pool = pool;
+    staker.amount_staked = amount;
+    staker.reward_debt = pool.accumulated_reward_per_share * amount as u128;
+    staker.pending_rewards = 0;
+
+    pool.total_staked += amount;
+
+    emit Staked(user, amount, pool.total_staked);
+  }
+
+  pub instruction unstake(
+    #[mut] signer user,
+    #[mut] account pool,
+    #[mut] account staker
+  ) {
+    assert(staker.owner == user, "Not your stake");
+
+    let amount = staker.amount_staked;
+    let pending = staker.amount_staked * pool.accumulated_reward_per_share as u64;
+    staker.pending_rewards += pending;
+    staker.amount_staked = 0;
+    pool.total_staked -= amount;
+
+    emit Unstaked(user, amount);
+  }
+
+  pub instruction claim(
+    #[mut] signer user,
+    #[mut] account pool,
+    #[mut] account staker
+  ) {
+    assert(staker.owner == user, "Not your stake");
+
+    let rewards = staker.pending_rewards;
+    staker.pending_rewards = 0;
+
+    emit RewardsClaimed(user, rewards);
+  }
+
+  pub instruction update_reward_rate(
+    #[mut] signer authority,
+    #[mut] account pool,
+    new_rate: u64
+  ) {
+    assert(pool.authority == authority, "Not pool authority");
+    pool.reward_rate = new_rate;
+    emit RewardRateUpdated(new_rate);
+  }
+
+  event Staked { user: pubkey, amount: u64, total: u64 }
+  event Unstaked { user: pubkey, amount: u64 }
+  event RewardsClaimed { user: pubkey, amount: u64 }
+  event RewardRateUpdated { new_rate: u64 }
+}

@@ -1,0 +1,129 @@
+// Website + Wallet Integration Template
+
+import { Wallet } from "@purp/stdlib";
+
+program WebsiteWallet {
+
+  account UserProfile {
+    wallet: pubkey,
+    username: string,
+    created_at: i64
+  }
+
+  pub instruction create_profile(
+    #[mut] signer user,
+    #[init] account profile,
+    username: string
+  ) {
+    profile.wallet = user;
+    profile.username = username;
+    emit ProfileCreated(user, username);
+  }
+
+  pub instruction update_profile(
+    #[mut] signer user,
+    #[mut] account profile,
+    username: string
+  ) {
+    assert(profile.wallet == user, "Not your profile");
+    profile.username = username;
+    emit ProfileUpdated(user, username);
+  }
+
+  event ProfileCreated { user: pubkey, username: string }
+  event ProfileUpdated { user: pubkey, username: string }
+}
+
+client {
+  async fn getProfile(program, wallet: pubkey): UserProfile {
+    return await program.account.UserProfile.fetch(wallet);
+  }
+
+  async fn createProfile(program, signer, username: string) {
+    return await program.rpc.createProfile(username, { signer });
+  }
+}
+
+frontend {
+  page "/" {
+    component Landing {
+      state wallet = null;
+
+      render {
+        <div class="landing">
+          <nav>
+            <h1>"Purp Wallet App"</h1>
+            <WalletMultiButton />
+          </nav>
+          <main>
+            {wallet != null ?
+              <Dashboard wallet={wallet} /> :
+              <Hero />
+            }
+          </main>
+          <footer>
+            <p>"Built with Purp SCL"</p>
+          </footer>
+        </div>
+      }
+    }
+
+    component Hero {
+      render {
+        <section class="hero">
+          <h2>"Connect your wallet to get started"</h2>
+          <p>"A seamless Solana-powered web experience."</p>
+        </section>
+      }
+    }
+
+    component Dashboard(wallet: pubkey) {
+      state profile = null;
+
+      on_mount {
+        profile = await client.getProfile(program, wallet);
+      }
+
+      render {
+        <section class="dashboard">
+          {profile != null ?
+            <ProfileView profile={profile} /> :
+            <CreateProfileForm />
+          }
+        </section>
+      }
+    }
+
+    component ProfileView(profile: UserProfile) {
+      render {
+        <div class="profile">
+          <h3>"Welcome, " {profile.username}</h3>
+          <p>"Wallet: " {profile.wallet}</p>
+        </div>
+      }
+    }
+
+    component CreateProfileForm {
+      state username = "";
+
+      render {
+        <form on_submit={ client.createProfile(program, signer, username) }>
+          <input bind={username} placeholder="Enter username" />
+          <button type="submit">"Create Profile"</button>
+        </form>
+      }
+    }
+  }
+
+  style {
+    .landing { font-family: "Inter, sans-serif"; }
+    .hero { text-align: "center"; padding: "4rem"; }
+    .dashboard { max-width: "800px"; margin: "0 auto"; }
+  }
+}
+
+config {
+  name = "website-wallet"
+  version = "0.1.0"
+  network = "devnet"
+}

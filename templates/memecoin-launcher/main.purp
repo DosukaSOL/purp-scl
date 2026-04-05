@@ -1,0 +1,63 @@
+// Memecoin Launcher Template
+// Launch your own SPL token on Solana with Purp
+
+program MemecoinLauncher {
+
+  account TokenConfig {
+    authority: pubkey,
+    name: string,
+    symbol: string,
+    decimals: u8,
+    total_supply: u64,
+    is_launched: bool
+  }
+
+  pub instruction create_token(
+    #[mut] signer creator,
+    #[init] mint token_mint,
+    #[init] account config
+  ) {
+    config.authority = creator;
+    config.name = "MyCoin";
+    config.symbol = "MYCN";
+    config.decimals = 9;
+    config.total_supply = 1000000000;
+    config.is_launched = false;
+  }
+
+  pub instruction launch(
+    #[mut] signer authority,
+    #[mut] account config,
+    #[mut] mint token_mint
+  ) {
+    if config.authority != authority {
+      return;
+    }
+    config.is_launched = true;
+    emit TokenLaunched(config.name, config.symbol, config.total_supply);
+  }
+
+  pub instruction mint_tokens(
+    #[mut] signer authority,
+    #[mut] account config,
+    #[mut] mint token_mint,
+    #[mut] token recipient_ata,
+    amount: u64
+  ) {
+    if config.authority != authority {
+      return;
+    }
+  }
+
+  event TokenLaunched {
+    name: string,
+    symbol: string,
+    supply: u64
+  }
+
+  error TokenError {
+    Unauthorized = "Not authorized to perform this action",
+    AlreadyLaunched = "Token has already been launched",
+    InvalidAmount = "Invalid token amount"
+  }
+}
