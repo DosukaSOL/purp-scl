@@ -144,7 +144,7 @@ test('account declaration tokens', () => {
 test('instruction with attributes', () => {
   assertTokenTypes('pub instruction create(#[mut] signer user)', [
     TokenType.Pub, TokenType.Instruction, TokenType.Identifier, TokenType.LeftParen,
-    TokenType.Hash, TokenType.LeftBracket, TokenType.Identifier, TokenType.RightBracket,
+    TokenType.Hash, TokenType.LeftBracket, TokenType.Mut, TokenType.RightBracket,
     TokenType.Signer, TokenType.Identifier, TokenType.RightParen
   ]);
 });
@@ -170,9 +170,9 @@ test('type keywords', () => {
   ]);
 });
 
-test('emit and event keywords', () => {
+test('event, emit, and assert keywords', () => {
   assertTokenTypes('event emit assert', [
-    TokenType.Event, TokenType.Emit, TokenType.Identifier
+    TokenType.Event, TokenType.Emit, TokenType.Assert
   ]);
 });
 

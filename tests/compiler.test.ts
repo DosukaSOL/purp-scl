@@ -74,7 +74,7 @@ test('compile program with event', () => {
 test('compile program with error', () => {
   const result = compile(`
     program Test {
-      error NotFound = "Item not found"
+      error AppErrors {\n        NotFound = "Item not found"\n      }
     }
   `);
   assert(result.success === true, 'Should compile successfully');
@@ -126,7 +126,7 @@ test('compile full program', () => {
       }
 
       event Deposited { user: pubkey, amount: u64 }
-      error InsufficientFunds = "Not enough balance"
+      error AppErrors { InsufficientFunds = "Not enough balance" }
     }
   `;
   const result = compile(source);

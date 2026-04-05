@@ -1,0 +1,957 @@
+================================================================================
+  PURP SCL — THE SOLANA CODING LANGUAGE
+  Complete Glossary & Reference  (v0.2.0)
+================================================================================
+
+Table of Contents
+─────────────────
+  1.  Overview
+  2.  Types
+  3.  Keywords
+  4.  Operators
+  5.  Declarations
+  6.  Accounts & Constraints
+  7.  Instructions
+  8.  Control Flow
+  9.  Pattern Matching
+  10. Error Handling
+  11. Generics
+  12. Closures & Lambdas
+  13. String Interpolation
+  14. Destructuring
+  15. Iterators
+  16. Tuples
+  17. Casting
+  18. Bitwise Operations
+  19. CPI (Cross-Program Invocation)
+  20. SPL Token Operations
+  21. PDA (Program Derived Addresses)
+  22. Events & Errors
+  23. Imports & Modules
+  24. Test Blocks
+  25. Attributes
+  26. Comments
+  27. CLI Commands
+  28. Safety Guarantees
+
+
+================================================================================
+1. OVERVIEW
+================================================================================
+
+Purp SCL is a purpose-built programming language for writing Solana programs.
+It compiles to Anchor Rust (for on-chain deployment) and TypeScript (for
+client-side SDK generation). The syntax is modern and concise, drawing
+inspiration from Rust, TypeScript, and Solidity, but designed specifically
+for Solana's account model, PDAs, CPIs, and SPL tokens.
+
+
+================================================================================
+2. TYPES
+================================================================================
+
+Primitive Types
+───────────────
+  u8, u16, u32, u64, u128      Unsigned integers
+  i8, i16, i32, i64, i128      Signed integers
+  f32, f64                      Floating-point numbers
+  bool                          Boolean (true / false)
+  string                        UTF-8 string
+  pubkey                        Solana public key (32 bytes)
+  bytes                         Raw byte array
+
+Compound Types
+──────────────
+  [T]                           Array of T
+  [T; N]                        Fixed-size array of T with N elements
+  (T, U, ...)                   Tuple
+  Option<T>                     Optional value (Some(x) or None)
+  Result<T, E>                  Result type (Ok(x) or Err(e))
+  Vec<T>                        Dynamic-length vector
+
+Special Types
+─────────────
+  void                          No return value
+  never                         Function that never returns
+  Self                          Current type in impl/trait contexts
+
+
+================================================================================
+3. KEYWORDS
+================================================================================
+
+Declaration        program  instruction  account  struct  enum  fn  const
+                   let  mut  type  trait  impl  pub  event  error
+
+Control Flow       if  else  match  for  while  loop  break  continue  return
+
+Error Handling     try  catch  throw  assert  require
+
+Solana-Specific    pda  cpi  token  mint  nft  cnft  signer
+                   transfer  mint_to  burn  close_account
+                   payer  space  has_one  close  seeds  bump  init
+
+Module System      import  from  use  as  module  self  super
+
+Async              async  await
+
+Values             true  false  null
+
+Other              in  test  client  frontend  config  deploy
+                   transaction  wallet  lamports  sol
+
+
+================================================================================
+4. OPERATORS
+================================================================================
+
+Arithmetic         +   -   *   /   %
+Assignment         =   +=  -=  *=  /=  %=
+Comparison         ==  !=  <   <=  >   >=
+Logical            &&  ||  !
+Bitwise            &   |   ^   <<  >>
+Bitwise Assign     &=  |=  ^=  <<=  >>=
+Range              ..  ..=
+Arrow              ->  =>
+Optional Chain     ?.
+Scope              ::
+Spread             ..
+
+
+================================================================================
+5. DECLARATIONS
+================================================================================
+
+Program
+───────
+  program MyProgram {
+    // accounts, instructions, events, errors
+  }
+
+  // With explicit program ID:
+  program MyProgram("11111111111111111111111111111111") {
+    ...
+  }
+
+Struct
+──────
+  struct Point {
+    x: f64,
+    y: f64
+  }
+
+  // With generics:
+  struct Container<T> {
+    value: T,
+    count: u64
+  }
+
+Enum
+────
+  enum Status {
+    Active,
+    Paused,
+    Closed
+  }
+
+  // With associated data:
+  enum Action {
+    Transfer { from: pubkey, to: pubkey, amount: u64 },
+    Burn { amount: u64 },
+    Freeze
+  }
+
+Function
+────────
+  fn calculate(amount: u64, rate: u16): u64 {
+    return amount * rate as u64 / 10000;
+  }
+
+  // Async function:
+  async fn fetch_data(): Result<Data, Error> {
+    ...
+  }
+
+Const
+─────
+  const MAX_SIZE: u64 = 1000;
+  const FEE_BPS: u16 = 250;
+
+Variable Binding
+────────────────
+  let x = 42;              // Immutable
+  let mut y: u64 = 0;      // Mutable with type annotation
+
+Type Alias
+──────────
+  type Address = pubkey;
+  type TokenAmount = u64;
+
+Trait
+─────
+  trait Validatable {
+    fn validate(): bool;
+    fn reset();
+  }
+
+Impl Block
+──────────
+  impl Validatable for MyAccount {
+    fn validate(): bool {
+      return self.owner != null;
+    }
+    fn reset() {
+      self.balance = 0;
+    }
+  }
+
+
+================================================================================
+6. ACCOUNTS & CONSTRAINTS
+================================================================================
+
+Account Declaration
+───────────────────
+  account Vault {
+    owner: pubkey,
+    balance: u64,
+    bump: u8
+  }
+
+Account Types in Instructions
+──────────────────────────────
+  signer          A signing wallet / keypair
+  account         An on-chain data account
+  token           An SPL token account
+  mint            An SPL mint account
+  pda             A program-derived address
+
+Account Constraints (Attributes)
+────────────────────────────────
+  #[mut]              Account is mutable
+  #[init]             Account is being initialized
+  #[payer = user]     Who pays for account creation
+  #[space = 8 + 32]   Byte size of the account
+  #[seeds = [...]]    PDA seed derivation
+  #[bump]             PDA bump seed
+  #[has_one = owner]  Ownership constraint
+  #[close = receiver] Close account, send lamports to receiver
+  #[constraint = ...] Custom boolean constraint
+
+Example
+───────
+  pub instruction create_vault(
+    #[mut] signer owner,
+    #[init, payer = owner, space = 8 + 40]
+    #[seeds = [b"vault", owner]]
+    #[bump]
+    account vault
+  ) {
+    vault.owner = owner;
+    vault.balance = 0;
+  }
+
+
+================================================================================
+7. INSTRUCTIONS
+================================================================================
+
+Basic Instruction
+─────────────────
+  pub instruction initialize(
+    #[mut] signer authority,
+    #[init] account data,
+    value: u64
+  ) {
+    data.value = value;
+    data.authority = authority;
+  }
+
+Visibility
+──────────
+  pub instruction   → Public, callable from clients
+  instruction       → Internal to the program
+
+Return Types
+────────────
+  pub instruction compute(a: u64, b: u64): u64 {
+    return a + b;
+  }
+
+
+================================================================================
+8. CONTROL FLOW
+================================================================================
+
+If / Else
+─────────
+  if balance > 0 {
+    process(balance);
+  } else if balance == 0 {
+    skip();
+  } else {
+    fail();
+  }
+
+For Loop
+────────
+  for item in items {
+    process(item);
+  }
+
+  // Range-based:
+  for i in 0..10 {
+    sum += i;
+  }
+
+  // Inclusive range:
+  for i in 0..=10 {
+    sum += i;
+  }
+
+While Loop
+──────────
+  while count > 0 {
+    count -= 1;
+  }
+
+Loop (infinite)
+───────────────
+  loop {
+    if done { break; }
+    step();
+  }
+
+Break / Continue
+────────────────
+  for i in 0..100 {
+    if i % 2 == 0 { continue; }
+    if i > 50 { break; }
+    process(i);
+  }
+
+
+================================================================================
+9. PATTERN MATCHING
+================================================================================
+
+Basic Match
+───────────
+  match status {
+    Status::Active => process(),
+    Status::Paused => wait(),
+    Status::Closed => cleanup(),
+  }
+
+Match with Binding
+──────────────────
+  match action {
+    Action::Transfer { from, to, amount } => {
+      transfer(from, to, amount);
+    },
+    Action::Burn { amount } => burn(amount),
+    Action::Freeze => freeze_account(),
+  }
+
+Wildcard Pattern
+────────────────
+  match value {
+    0 => zero(),
+    1 => one(),
+    _ => other(),
+  }
+
+Tuple Pattern
+─────────────
+  match (x, y) {
+    (0, 0) => origin(),
+    (x, 0) => x_axis(x),
+    (0, y) => y_axis(y),
+    _ => general(),
+  }
+
+Or Pattern
+──────────
+  match code {
+    1 | 2 | 3 => low(),
+    _ => high(),
+  }
+
+Range Pattern
+─────────────
+  match age {
+    0..=17 => minor(),
+    18..=64 => adult(),
+    _ => senior(),
+  }
+
+
+================================================================================
+10. ERROR HANDLING
+================================================================================
+
+Error Declaration
+─────────────────
+  error AppErrors {
+    InsufficientFunds = "Not enough balance",
+    Unauthorized = "Not authorized",
+    InvalidAmount = "Amount must be > 0"
+  }
+
+Assert
+──────
+  assert(amount > 0, "Amount must be positive");
+  assert(vault.owner == signer, "Not the owner");
+
+  Compiles to Rust:
+    require!(amount > 0, AppErrors::InvalidAmount);
+
+Require
+───────
+  require(balance >= amount, AppErrors::InsufficientFunds);
+
+  Compiles to Rust:
+    require!(balance >= amount, AppErrors::InsufficientFunds);
+
+Try / Catch
+───────────
+  try {
+    let result = risky_operation();
+    process(result);
+  } catch e {
+    log(e.message);
+  }
+
+Throw
+─────
+  throw AppErrors::Unauthorized;
+
+  Compiles to Rust:
+    return Err(AppErrors::Unauthorized.into());
+
+Try Expression (? Operator)
+───────────────────────────
+  let data = get_account_data()?;
+
+  Compiles to Rust: same as Rust's ? operator
+
+Result Type
+───────────
+  fn divide(a: u64, b: u64): Result<u64, AppErrors> {
+    if b == 0 {
+      throw AppErrors::InvalidAmount;
+    }
+    return a / b;
+  }
+
+
+================================================================================
+11. GENERICS
+================================================================================
+
+Generic Struct
+──────────────
+  struct Wrapper<T> {
+    value: T,
+    timestamp: u64
+  }
+
+Generic Function
+────────────────
+  fn first<T>(items: [T]): T {
+    return items[0];
+  }
+
+Generic with Constraint
+───────────────────────
+  fn validate<T: Validatable>(item: T): bool {
+    return item.validate();
+  }
+
+Generic with Default
+────────────────────
+  struct Config<T = u64> {
+    value: T
+  }
+
+Multiple Generics
+─────────────────
+  fn swap<A, B>(pair: (A, B)): (B, A) {
+    return (pair.1, pair.0);
+  }
+
+
+================================================================================
+12. CLOSURES & LAMBDAS
+================================================================================
+
+Closure Syntax
+──────────────
+  let double = |x: u64| -> u64 { x * 2 };
+  let add = |a, b| a + b;
+
+As Arguments
+────────────
+  let filtered = items.filter(|x| x > 0);
+  let mapped = items.map(|x| x * 2);
+
+Multi-line
+──────────
+  let process = |item: Data| -> Result<u64, Error> {
+    let validated = item.validate()?;
+    return validated.compute();
+  };
+
+  Compiles to Rust:
+    let process = |item: Data| -> Result<u64, Error> { ... };
+
+
+================================================================================
+13. STRING INTERPOLATION
+================================================================================
+
+Template Strings
+────────────────
+  let msg = `Hello ${name}, your balance is ${balance}`;
+  let debug = `Account ${addr} has ${tokens.length} tokens`;
+
+  Compiles to Rust:
+    let msg = format!("Hello {}, your balance is {}", name, balance);
+
+  Compiles to TypeScript:
+    const msg = `Hello ${name}, your balance is ${balance}`;
+
+
+================================================================================
+14. DESTRUCTURING
+================================================================================
+
+Object Destructuring
+────────────────────
+  let { owner, balance } = vault;
+  let { x, y, ..rest } = point;
+  let { name: userName, age } = user;
+
+Array Destructuring
+───────────────────
+  let [first, second, ..rest] = items;
+  let [head] = list;
+
+Tuple Destructuring
+───────────────────
+  let (x, y, z) = coordinates;
+  let (name, age) = get_info();
+
+
+================================================================================
+15. ITERATORS
+================================================================================
+
+Map
+───
+  let doubled = items.map(|x| x * 2);
+
+  Compiles to Rust:
+    let doubled: Vec<_> = items.iter().map(|x| x * 2).collect();
+
+Filter
+──────
+  let positive = items.filter(|x| x > 0);
+
+  Compiles to Rust:
+    let positive: Vec<_> = items.iter().filter(|x| x > &0).collect();
+
+Find
+────
+  let found = items.find(|x| x.id == target_id);
+
+Reduce / Fold
+──────────────
+  let sum = items.reduce(|acc, x| acc + x, 0);
+
+  Compiles to Rust:
+    let sum = items.iter().fold(0, |acc, x| acc + x);
+
+ForEach
+───────
+  items.forEach(|item| process(item));
+
+  Compiles to Rust:
+    items.iter().for_each(|item| process(item));
+
+Any / All
+─────────
+  let has_negative = items.any(|x| x < 0);
+  let all_positive = items.all(|x| x > 0);
+
+Chaining
+────────
+  let result = items
+    .filter(|x| x.active)
+    .map(|x| x.value)
+    .reduce(|acc, v| acc + v, 0);
+
+
+================================================================================
+16. TUPLES
+================================================================================
+
+Tuple Creation
+──────────────
+  let pair = (42, "hello");
+  let triple: (u64, string, bool) = (1, "ok", true);
+
+Tuple Access
+────────────
+  let x = pair.0;
+  let y = pair.1;
+
+Tuple in Function Return
+─────────────────────────
+  fn divide_mod(a: u64, b: u64): (u64, u64) {
+    return (a / b, a % b);
+  }
+
+
+================================================================================
+17. CASTING
+================================================================================
+
+Numeric Cast
+────────────
+  let big: u64 = small_value as u64;
+  let truncated: u8 = large_value as u8;
+  let float: f64 = integer as f64;
+
+  Compiles to Rust:
+    let big: u64 = small_value as u64;
+
+Note: Casts between incompatible types are caught by the type checker.
+
+
+================================================================================
+18. BITWISE OPERATIONS
+================================================================================
+
+Bitwise AND        a & b
+Bitwise OR         a | b
+Bitwise XOR        a ^ b
+Left Shift         a << n
+Right Shift        a >> n
+Bitwise NOT        !a       (unary)
+
+Compound Assign    a &= b;  a |= b;  a ^= b;  a <<= n;  a >>= n;
+
+Example
+───────
+  let flags: u8 = 0b1010_0101;
+  let mask: u8 = 0b0000_1111;
+  let lower = flags & mask;        // 0b0000_0101
+  let combined = flags | 0x80;     // Set high bit
+
+  Compiles to Rust:
+    Same operators — direct 1:1 mapping
+
+
+================================================================================
+19. CPI (CROSS-PROGRAM INVOCATION)
+================================================================================
+
+CPI Call
+────────
+  cpi token_program::transfer {
+    from: source_account,
+    to: dest_account,
+    authority: owner,
+    amount: 1000
+  };
+
+  With PDA Signer Seeds:
+  cpi token_program::transfer {
+    from: vault,
+    to: user_token,
+    authority: vault_authority,
+    amount: amount,
+    signer_seeds: [b"vault", bump]
+  };
+
+  Compiles to Rust (Anchor):
+    let cpi_ctx = CpiContext::new_with_signer(
+      ctx.accounts.token_program.to_account_info(),
+      Transfer {
+        from: ctx.accounts.vault.to_account_info(),
+        to: ctx.accounts.user_token.to_account_info(),
+        authority: ctx.accounts.vault_authority.to_account_info(),
+      },
+      &[&[b"vault", &[bump]]],
+    );
+    transfer(cpi_ctx, amount)?;
+
+
+================================================================================
+20. SPL TOKEN OPERATIONS
+================================================================================
+
+Transfer
+────────
+  transfer {
+    from: source,
+    to: destination,
+    authority: owner,
+    amount: 500
+  };
+
+Mint To
+───────
+  mint_to {
+    mint: token_mint,
+    to: recipient_token,
+    authority: mint_authority,
+    amount: 1000
+  };
+
+Burn
+────
+  burn {
+    mint: token_mint,
+    from: token_account,
+    authority: owner,
+    amount: 100
+  };
+
+Close Account
+─────────────
+  close_account {
+    account: old_token,
+    destination: owner_wallet,
+    authority: owner
+  };
+
+  All SPL operations compile to Anchor's anchor_spl::token::* module calls
+  with appropriate CpiContext construction.
+
+
+================================================================================
+21. PDA (PROGRAM DERIVED ADDRESSES)
+================================================================================
+
+PDA in Account Constraints
+──────────────────────────
+  pub instruction withdraw(
+    #[mut]
+    #[seeds = [b"vault", owner.key()]]
+    #[bump]
+    account vault,
+    #[mut] signer owner
+  ) {
+    ...
+  }
+
+PDA in Expressions
+──────────────────
+  let (address, bump) = pda([b"vault", user.key()]);
+
+  Compiles to Rust:
+    let (address, bump) = Pubkey::find_program_address(
+      &[b"vault", user.key().as_ref()],
+      ctx.program_id,
+    );
+
+
+================================================================================
+22. EVENTS & ERRORS
+================================================================================
+
+Event Declaration
+─────────────────
+  event Transfer {
+    from: pubkey,
+    to: pubkey,
+    amount: u64
+  }
+
+  Compiles to Rust:
+    #[event]
+    pub struct Transfer {
+      pub from: Pubkey,
+      pub to: Pubkey,
+      pub amount: u64,
+    }
+
+Emit
+────
+  emit Transfer(from_addr, to_addr, amount);
+  emit Created(user, timestamp);
+
+  Compiles to Rust:
+    emit!(Transfer { from: from_addr, to: to_addr, amount });
+
+Error Declaration
+─────────────────
+  error VaultErrors {
+    InsufficientFunds = "Not enough balance",
+    Unauthorized = "Not authorized",
+    VaultLocked = "Vault is currently locked"
+  }
+
+  Compiles to Rust:
+    #[error_code]
+    pub enum VaultErrors {
+      #[msg("Not enough balance")]
+      InsufficientFunds,
+      #[msg("Not authorized")]
+      Unauthorized,
+      #[msg("Vault is currently locked")]
+      VaultLocked,
+    }
+
+
+================================================================================
+23. IMPORTS & MODULES
+================================================================================
+
+Named Import
+────────────
+  import { Token, NFT } from "@purp/stdlib";
+  import { Connection } from "@solana/web3.js";
+
+Wildcard Import
+───────────────
+  import * from "@purp/utils";
+
+Aliased Import
+──────────────
+  import { Token as SPLToken } from "@purp/stdlib";
+
+
+================================================================================
+24. TEST BLOCKS
+================================================================================
+
+Test Declaration
+────────────────
+  test "vault deposit and withdraw" {
+    let owner = wallet();
+    let vault = create_vault(owner);
+
+    deposit(vault, owner, 1000);
+    assert(vault.balance == 1000, "Balance should be 1000");
+
+    withdraw(vault, owner, 500);
+    assert(vault.balance == 500, "Balance should be 500");
+  }
+
+  Compiles to Rust:
+    #[cfg(test)]
+    mod tests {
+      use super::*;
+
+      #[test]
+      fn test_vault_deposit_and_withdraw() { ... }
+    }
+
+
+================================================================================
+25. ATTRIBUTES
+================================================================================
+
+Attribute Syntax
+────────────────
+  #[attribute]
+  #[attribute(arg1, arg2)]
+  #[attribute = value]
+
+Common Attributes
+─────────────────
+  #[mut]                   Mark account as mutable
+  #[init]                  Initialize new account
+  #[payer = account]       Set payer for initialization
+  #[space = bytes]         Set account space allocation
+  #[seeds = [...]]         PDA seed specification
+  #[bump]                  Auto PDA bump
+  #[has_one = field]       Ownership constraint
+  #[close = account]       Close and drain account
+  #[constraint = expr]     Custom constraint expression
+
+
+================================================================================
+26. COMMENTS
+================================================================================
+
+Single-Line
+───────────
+  // This is a comment
+
+Doc Comment
+───────────
+  /// This is a documentation comment
+  /// It documents the next declaration
+
+Multi-Line
+──────────
+  /* This is a
+     multi-line comment */
+
+
+================================================================================
+27. CLI COMMANDS
+================================================================================
+
+  purp build [file]           Compile .purp files to Rust + TypeScript
+  purp check [file]           Type-check without compiling
+  purp run [file]             Compile and execute
+  purp test [file]            Run test blocks
+  purp lint [file]            Run static analysis
+  purp format [file]          Format .purp source files
+  purp deploy                 Deploy to Solana
+  purp init [name]            Initialize a new Purp project
+  purp audit                  Security audit of the project
+  purp --version              Show version
+  purp --help                 Show help
+
+
+================================================================================
+28. SAFETY GUARANTEES
+================================================================================
+
+Purp SCL enforces safety at multiple levels:
+
+Compile-Time Safety
+───────────────────
+  • Owner checks — every instruction must specify a signer
+  • Account validation — init accounts require payer + space
+  • PDA seed verification — seeds checked for correctness
+  • Type safety — strong typing prevents invalid operations
+  • No raw pointers or unsafe memory access
+  • Overflow checks on arithmetic operations
+
+Linter Rules
+────────────
+  • naming-convention      Enforce PascalCase / camelCase / UPPER_SNAKE
+  • no-unsafe-arithmetic   Flag unchecked math operations
+  • require-signer         Every instruction needs a signer
+  • no-hardcoded-keys      No hardcoded public keys in source
+  • init-needs-payer       #[init] accounts must have #[payer]
+  • no-empty-body          No empty instruction/function bodies
+
+Runtime Safety
+──────────────
+  • Anchor's account discriminator checks
+  • Automatic constraint validation
+  • Signer verification on every transaction
+  • PDA bump verification
+
+Security Best Practices
+───────────────────────
+  • Never store private keys in source code
+  • Use PDAs for program-owned accounts
+  • Always verify account ownership
+  • Use assert/require for all business logic constraints
+  • Close unused accounts to reclaim rent
+
+
+================================================================================
+  END OF GLOSSARY
+  Purp SCL v0.2.0 — The Solana Coding Language
+  https://github.com/DosukaSOL/purp-scl
+================================================================================

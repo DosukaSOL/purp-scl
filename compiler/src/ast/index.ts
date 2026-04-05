@@ -1,6 +1,7 @@
 // ============================================================================
-// Purp AST Node Types — The Solana Coding Language
-// Complete Abstract Syntax Tree definition for the Purp language
+// Purp AST Node Types v0.2.0 — The Solana Coding Language
+// Complete Abstract Syntax Tree with generics, error handling, patterns,
+// destructuring, attributes, CPI, SPL ops, test blocks and more.
 // ============================================================================
 
 import { SourceSpan } from '../lexer/tokens.js';
@@ -9,6 +10,21 @@ import { SourceSpan } from '../lexer/tokens.js';
 export interface BaseNode {
   kind: string;
   span: SourceSpan;
+}
+
+// --- Generic Parameters ---
+export interface GenericParam extends BaseNode {
+  kind: 'GenericParam';
+  name: string;
+  constraint?: TypeAnnotation;
+  default?: TypeAnnotation;
+}
+
+// --- Attribute ---
+export interface Attribute extends BaseNode {
+  kind: 'Attribute';
+  name: string;
+  args: Expression[];
 }
 
 // --- Program (Top Level) ---
@@ -34,7 +50,8 @@ export type TopLevelNode =
   | TraitDeclaration
   | ClientBlock
   | FrontendBlock
-  | ConfigBlock;
+  | ConfigBlock
+  | TestBlock;
 
 // --- Program Declaration ---
 export interface ProgramDeclaration extends BaseNode {
@@ -53,6 +70,7 @@ export interface InstructionDeclaration extends BaseNode {
   params: Parameter[];
   body: Statement[];
   returns?: TypeAnnotation;
+  attributes: Attribute[];
 }
 
 export interface AccountParam extends BaseNode {
@@ -82,6 +100,7 @@ export interface AccountDeclaration extends BaseNode {
   name: string;
   fields: FieldDeclaration[];
   space?: number;
+  attributes: Attribute[];
 }
 
 export interface StructDeclaration extends BaseNode {
@@ -89,6 +108,8 @@ export interface StructDeclaration extends BaseNode {
   name: string;
   fields: FieldDeclaration[];
   visibility: 'pub' | 'private';
+  genericParams?: GenericParam[];
+  attributes: Attribute[];
 }
 
 export interface FieldDeclaration extends BaseNode {
@@ -105,6 +126,8 @@ export interface EnumDeclaration extends BaseNode {
   name: string;
   variants: EnumVariant[];
   visibility: 'pub' | 'private';
+  genericParams?: GenericParam[];
+  attributes: Attribute[];
 }
 
 export interface EnumVariant extends BaseNode {
@@ -123,6 +146,8 @@ export interface FunctionDeclaration extends BaseNode {
   returnType?: TypeAnnotation;
   body: Statement[];
   isAsync: boolean;
+  genericParams?: GenericParam[];
+  attributes: Attribute[];
 }
 
 export interface Parameter extends BaseNode {
@@ -181,6 +206,7 @@ export interface TypeAlias extends BaseNode {
   kind: 'TypeAlias';
   name: string;
   type: TypeAnnotation;
+  genericParams?: GenericParam[];
 }
 
 // --- Impl Block ---
@@ -189,6 +215,7 @@ export interface ImplBlock extends BaseNode {
   target: string;
   trait?: string;
   methods: FunctionDeclaration[];
+  genericParams?: GenericParam[];
 }
 
 // --- Trait ---
@@ -196,6 +223,7 @@ export interface TraitDeclaration extends BaseNode {
   kind: 'TraitDeclaration';
   name: string;
   methods: FunctionSignature[];
+  genericParams?: GenericParam[];
 }
 
 export interface FunctionSignature extends BaseNode {
@@ -205,7 +233,7 @@ export interface FunctionSignature extends BaseNode {
   returnType?: TypeAnnotation;
 }
 
-// --- Client Block (Purp-specific: client-side code generation) ---
+// --- Client Block ---
 export interface ClientBlock extends BaseNode {
   kind: 'ClientBlock';
   name: string;
@@ -231,6 +259,14 @@ export interface ConfigEntry extends BaseNode {
   value: Expression;
 }
 
+// --- Test Block ---
+export interface TestBlock extends BaseNode {
+  kind: 'TestBlock';
+  name: string;
+  body: Statement[];
+  isAsync: boolean;
+}
+
 // ============================================================================
 // Type Annotations
 // ============================================================================
@@ -240,6 +276,7 @@ export type TypeAnnotation =
   | NamedType
   | ArrayType
   | OptionType
+  | ResultType
   | TupleType
   | FunctionType
   | GenericType;
@@ -264,6 +301,12 @@ export interface ArrayType extends BaseNode {
 export interface OptionType extends BaseNode {
   kind: 'OptionType';
   inner: TypeAnnotation;
+}
+
+export interface ResultType extends BaseNode {
+  kind: 'ResultType';
+  ok: TypeAnnotation;
+  err?: TypeAnnotation;
 }
 
 export interface TupleType extends BaseNode {
@@ -302,7 +345,13 @@ export type Statement =
   | ContinueStatement
   | EmitStatement
   | CPICall
-  | BlockStatement;
+  | SPLOperation
+  | BlockStatement
+  | AssertStatement
+  | RequireStatement
+  | TryStatement
+  | ThrowStatement
+  | DestructureStatement;
 
 export interface LetStatement extends BaseNode {
   kind: 'LetStatement';
@@ -323,7 +372,7 @@ export interface AssignmentStatement extends BaseNode {
   kind: 'AssignmentStatement';
   target: Expression;
   value: Expression;
-  operator: '=' | '+=' | '-=' | '*=' | '/=';
+  operator: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^=' | '<<=' | '>>=';
 }
 
 export interface ExpressionStatement extends BaseNode {
@@ -352,7 +401,8 @@ export interface MatchStatement extends BaseNode {
 
 export interface MatchArm extends BaseNode {
   kind: 'MatchArm';
-  pattern: Expression;
+  pattern: Pattern;
+  guard?: Expression;
   body: Statement[];
 }
 
@@ -394,11 +444,141 @@ export interface CPICall extends BaseNode {
   instruction: string;
   accounts: Expression[];
   args: Expression[];
+  seeds?: Expression[];
+}
+
+export interface SPLOperation extends BaseNode {
+  kind: 'SPLOperation';
+  operation: 'transfer' | 'mint_to' | 'burn' | 'close_account' | 'create_associated_token_account';
+  args: { name: string; value: Expression }[];
 }
 
 export interface BlockStatement extends BaseNode {
   kind: 'BlockStatement';
   body: Statement[];
+}
+
+export interface AssertStatement extends BaseNode {
+  kind: 'AssertStatement';
+  condition: Expression;
+  message?: Expression;
+}
+
+export interface RequireStatement extends BaseNode {
+  kind: 'RequireStatement';
+  condition: Expression;
+  errorCode?: Expression;
+  message?: Expression;
+}
+
+export interface TryStatement extends BaseNode {
+  kind: 'TryStatement';
+  body: Statement[];
+  catchParam?: string;
+  catchBody: Statement[];
+}
+
+export interface ThrowStatement extends BaseNode {
+  kind: 'ThrowStatement';
+  value: Expression;
+}
+
+export interface DestructureStatement extends BaseNode {
+  kind: 'DestructureStatement';
+  pattern: DestructurePattern;
+  mutable: boolean;
+  type?: TypeAnnotation;
+  value: Expression;
+}
+
+// ============================================================================
+// Patterns (for match, destructuring)
+// ============================================================================
+
+export type Pattern =
+  | LiteralPattern
+  | IdentifierPattern
+  | WildcardPattern
+  | StructPattern
+  | EnumPattern
+  | TuplePattern
+  | ArrayPattern
+  | RangePattern
+  | OrPattern;
+
+export interface LiteralPattern extends BaseNode {
+  kind: 'LiteralPattern';
+  value: Expression;
+}
+
+export interface IdentifierPattern extends BaseNode {
+  kind: 'IdentifierPattern';
+  name: string;
+}
+
+export interface WildcardPattern extends BaseNode {
+  kind: 'WildcardPattern';
+}
+
+export interface StructPattern extends BaseNode {
+  kind: 'StructPattern';
+  name: string;
+  fields: { name: string; pattern: Pattern }[];
+  rest?: boolean;
+}
+
+export interface EnumPattern extends BaseNode {
+  kind: 'EnumPattern';
+  enumName: string;
+  variant: string;
+  fields?: Pattern[];
+}
+
+export interface TuplePattern extends BaseNode {
+  kind: 'TuplePattern';
+  elements: Pattern[];
+}
+
+export interface ArrayPattern extends BaseNode {
+  kind: 'ArrayPattern';
+  elements: Pattern[];
+  rest?: boolean;
+}
+
+export interface RangePattern extends BaseNode {
+  kind: 'RangePattern';
+  start: Expression;
+  end: Expression;
+  inclusive: boolean;
+}
+
+export interface OrPattern extends BaseNode {
+  kind: 'OrPattern';
+  patterns: Pattern[];
+}
+
+// --- Destructure Pattern (for let/const) ---
+
+export type DestructurePattern =
+  | ObjectDestructure
+  | ArrayDestructure
+  | TupleDestructure;
+
+export interface ObjectDestructure extends BaseNode {
+  kind: 'ObjectDestructure';
+  fields: { name: string; alias?: string; default?: Expression }[];
+  rest?: string;
+}
+
+export interface ArrayDestructure extends BaseNode {
+  kind: 'ArrayDestructure';
+  elements: (string | null)[];
+  rest?: string;
+}
+
+export interface TupleDestructure extends BaseNode {
+  kind: 'TupleDestructure';
+  elements: string[];
 }
 
 // ============================================================================
@@ -408,6 +588,7 @@ export interface BlockStatement extends BaseNode {
 export type Expression =
   | NumberLiteral
   | StringLiteral
+  | TemplateStringLiteral
   | BooleanLiteral
   | PubkeyLiteral
   | NullLiteral
@@ -416,14 +597,18 @@ export type Expression =
   | UnaryExpr
   | CallExpr
   | MemberExpr
+  | OptionalChainExpr
   | IndexExpr
   | ArrayExpr
   | ObjectExpr
+  | TupleExpr
   | LambdaExpr
   | AwaitExpr
   | TernaryExpr
   | StructInitExpr
   | RangeExpr
+  | CastExpr
+  | TryExpr
   | SolLiteral
   | LamportsLiteral;
 
@@ -436,6 +621,12 @@ export interface NumberLiteral extends BaseNode {
 export interface StringLiteral extends BaseNode {
   kind: 'StringLiteral';
   value: string;
+}
+
+export interface TemplateStringLiteral extends BaseNode {
+  kind: 'TemplateStringLiteral';
+  parts: (string | Expression)[];
+  raw: string;
 }
 
 export interface BooleanLiteral extends BaseNode {
@@ -474,10 +665,17 @@ export interface CallExpr extends BaseNode {
   kind: 'CallExpr';
   callee: Expression;
   args: Expression[];
+  typeArgs?: TypeAnnotation[];
 }
 
 export interface MemberExpr extends BaseNode {
   kind: 'MemberExpr';
+  object: Expression;
+  property: string;
+}
+
+export interface OptionalChainExpr extends BaseNode {
+  kind: 'OptionalChainExpr';
   object: Expression;
   property: string;
 }
@@ -496,6 +694,11 @@ export interface ArrayExpr extends BaseNode {
 export interface ObjectExpr extends BaseNode {
   kind: 'ObjectExpr';
   properties: { key: string; value: Expression }[];
+}
+
+export interface TupleExpr extends BaseNode {
+  kind: 'TupleExpr';
+  elements: Expression[];
 }
 
 export interface LambdaExpr extends BaseNode {
@@ -529,6 +732,17 @@ export interface RangeExpr extends BaseNode {
   inclusive: boolean;
 }
 
+export interface CastExpr extends BaseNode {
+  kind: 'CastExpr';
+  expression: Expression;
+  targetType: TypeAnnotation;
+}
+
+export interface TryExpr extends BaseNode {
+  kind: 'TryExpr';
+  expression: Expression;
+}
+
 export interface SolLiteral extends BaseNode {
   kind: 'SolLiteral';
   amount: number;
@@ -553,4 +767,8 @@ export type ASTNode =
   | Parameter
   | ImportItem
   | MatchArm
-  | ConfigEntry;
+  | ConfigEntry
+  | Pattern
+  | GenericParam
+  | Attribute
+  | TestBlock;

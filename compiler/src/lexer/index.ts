@@ -47,6 +47,9 @@ export class Lexer {
     const start = this.currentLocation();
     const ch = this.peek();
 
+    // Template string literals
+    if (ch === '`') return this.readTemplateString();
+
     // String literals
     if (ch === '"' || ch === "'") return this.readString(ch);
 
@@ -130,6 +133,45 @@ export class Lexer {
     return this.makeToken(type, value, start);
   }
 
+  private readTemplateString(): Token {
+    const start = this.currentLocation();
+    this.advance(); // consume backtick
+    let value = '';
+    while (!this.isAtEnd() && this.peek() !== '`') {
+      if (this.peek() === '$' && this.pos + 1 < this.source.length && this.source[this.pos + 1] === '{') {
+        // For simplicity, we inline the interpolation as __INTERP_START__expr__INTERP_END__
+        this.advance(); // $
+        this.advance(); // {
+        let depth = 1;
+        let expr = '';
+        while (!this.isAtEnd() && depth > 0) {
+          if (this.peek() === '{') depth++;
+          if (this.peek() === '}') depth--;
+          if (depth > 0) expr += this.advance();
+          else this.advance(); // consume closing }
+        }
+        value += `\${${expr}}`;
+      } else if (this.peek() === '\\') {
+        this.advance();
+        const escaped = this.advance();
+        switch (escaped) {
+          case 'n': value += '\n'; break;
+          case 't': value += '\t'; break;
+          case '\\': value += '\\'; break;
+          case '`': value += '`'; break;
+          default: value += escaped;
+        }
+      } else {
+        value += this.advance();
+      }
+    }
+    if (this.isAtEnd()) {
+      throw new LexerError('Unterminated template string', start, this.file);
+    }
+    this.advance(); // consume closing backtick
+    return this.makeToken(TokenType.TemplateString, value, start);
+  }
+
   private readOperator(start: SourceLocation): Token {
     const ch = this.advance();
     switch (ch) {
@@ -139,13 +181,22 @@ export class Lexer {
       case '}': return this.makeToken(TokenType.RightBrace, ch, start);
       case '[': return this.makeToken(TokenType.LeftBracket, ch, start);
       case ']': return this.makeToken(TokenType.RightBracket, ch, start);
-      case '+': return this.makeToken(TokenType.Plus, ch, start);
+      case '+':
+        if (this.match('=')) return this.makeToken(TokenType.PlusAssign, '+=', start);
+        return this.makeToken(TokenType.Plus, ch, start);
       case '-':
         if (this.match('>')) return this.makeToken(TokenType.Arrow, '->', start);
+        if (this.match('=')) return this.makeToken(TokenType.MinusAssign, '-=', start);
         return this.makeToken(TokenType.Minus, ch, start);
-      case '*': return this.makeToken(TokenType.Star, ch, start);
-      case '/': return this.makeToken(TokenType.Slash, ch, start);
-      case '%': return this.makeToken(TokenType.Percent, ch, start);
+      case '*':
+        if (this.match('=')) return this.makeToken(TokenType.StarAssign, '*=', start);
+        return this.makeToken(TokenType.Star, ch, start);
+      case '/':
+        if (this.match('=')) return this.makeToken(TokenType.SlashAssign, '/=', start);
+        return this.makeToken(TokenType.Slash, ch, start);
+      case '%':
+        if (this.match('=')) return this.makeToken(TokenType.PercentAssign, '%=', start);
+        return this.makeToken(TokenType.Percent, ch, start);
       case '=':
         if (this.match('=')) return this.makeToken(TokenType.Equals, '==', start);
         if (this.match('>')) return this.makeToken(TokenType.FatArrow, '=>', start);
@@ -154,19 +205,35 @@ export class Lexer {
         if (this.match('=')) return this.makeToken(TokenType.NotEquals, '!=', start);
         return this.makeToken(TokenType.Not, ch, start);
       case '<':
+        if (this.match('<')) {
+          if (this.match('=')) return this.makeToken(TokenType.ShiftLeftAssign, '<<=', start);
+          return this.makeToken(TokenType.ShiftLeft, '<<', start);
+        }
         if (this.match('=')) return this.makeToken(TokenType.LessEqual, '<=', start);
         return this.makeToken(TokenType.LessThan, ch, start);
       case '>':
+        if (this.match('>')) {
+          if (this.match('=')) return this.makeToken(TokenType.ShiftRightAssign, '>>=', start);
+          return this.makeToken(TokenType.ShiftRight, '>>', start);
+        }
         if (this.match('=')) return this.makeToken(TokenType.GreaterEqual, '>=', start);
         return this.makeToken(TokenType.GreaterThan, ch, start);
       case '&':
         if (this.match('&')) return this.makeToken(TokenType.And, '&&', start);
+        if (this.match('=')) return this.makeToken(TokenType.AmpersandAssign, '&=', start);
         return this.makeToken(TokenType.Ampersand, ch, start);
       case '|':
         if (this.match('|')) return this.makeToken(TokenType.Or, '||', start);
+        if (this.match('=')) return this.makeToken(TokenType.PipeAssign, '|=', start);
         return this.makeToken(TokenType.Pipe, ch, start);
+      case '^':
+        if (this.match('=')) return this.makeToken(TokenType.CaretAssign, '^=', start);
+        return this.makeToken(TokenType.Caret, ch, start);
       case '.':
-        if (this.match('.')) return this.makeToken(TokenType.DotDot, '..', start);
+        if (this.match('.')) {
+          if (this.match('=')) return this.makeToken(TokenType.DotDotEquals, '..=', start);
+          return this.makeToken(TokenType.DotDot, '..', start);
+        }
         return this.makeToken(TokenType.Dot, ch, start);
       case ':':
         if (this.match(':')) return this.makeToken(TokenType.ColonColon, '::', start);
@@ -175,7 +242,23 @@ export class Lexer {
       case ',': return this.makeToken(TokenType.Comma, ch, start);
       case '#': return this.makeToken(TokenType.Hash, ch, start);
       case '@': return this.makeToken(TokenType.At, ch, start);
-      case '?': return this.makeToken(TokenType.Question, ch, start);
+      case '?':
+        if (this.match('.')) return this.makeToken(TokenType.QuestionDot, '?.', start);
+        return this.makeToken(TokenType.Question, ch, start);
+      case '`': {
+        // Put the backtick back and use template string reader
+        this.pos--;
+        this.column--;
+        return this.readTemplateString();
+      }
+      case '_':
+        if (!this.isAlphaNumeric(this.peek())) {
+          return this.makeToken(TokenType.Underscore, ch, start);
+        }
+        // Start of identifier
+        this.pos--;
+        this.column--;
+        return this.readIdentifier();
       case '\n':
         return this.makeToken(TokenType.Newline, ch, start);
       default:

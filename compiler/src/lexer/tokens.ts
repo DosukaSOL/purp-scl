@@ -1,21 +1,37 @@
 // ============================================================================
-// Purp Token Types — The Solana Coding Language
+// Purp Token Types — The Solana Coding Language v0.2.0
 // ============================================================================
 
 export enum TokenType {
   // Literals
   Number = 'Number',
   String = 'String',
+  TemplateString = 'TemplateString',
+  TemplatePart = 'TemplatePart',
   Boolean = 'Boolean',
   Identifier = 'Identifier',
   Pubkey = 'Pubkey',
 
-  // Operators
+  // Arithmetic operators
   Plus = 'Plus',
   Minus = 'Minus',
   Star = 'Star',
   Slash = 'Slash',
   Percent = 'Percent',
+
+  // Compound assignment operators
+  PlusAssign = 'PlusAssign',
+  MinusAssign = 'MinusAssign',
+  StarAssign = 'StarAssign',
+  SlashAssign = 'SlashAssign',
+  PercentAssign = 'PercentAssign',
+  AmpersandAssign = 'AmpersandAssign',
+  PipeAssign = 'PipeAssign',
+  CaretAssign = 'CaretAssign',
+  ShiftLeftAssign = 'ShiftLeftAssign',
+  ShiftRightAssign = 'ShiftRightAssign',
+
+  // Comparison operators
   Assign = 'Assign',
   Equals = 'Equals',
   NotEquals = 'NotEquals',
@@ -23,13 +39,23 @@ export enum TokenType {
   GreaterThan = 'GreaterThan',
   LessEqual = 'LessEqual',
   GreaterEqual = 'GreaterEqual',
+
+  // Logical operators
   And = 'And',
   Or = 'Or',
   Not = 'Not',
+
+  // Bitwise operators
+  ShiftLeft = 'ShiftLeft',
+  ShiftRight = 'ShiftRight',
+  Caret = 'Caret',
+
+  // Punctuation
   Arrow = 'Arrow',
   FatArrow = 'FatArrow',
   Dot = 'Dot',
   DotDot = 'DotDot',
+  DotDotEquals = 'DotDotEquals',
   Colon = 'Colon',
   ColonColon = 'ColonColon',
   Semicolon = 'Semicolon',
@@ -39,6 +65,10 @@ export enum TokenType {
   Pipe = 'Pipe',
   Ampersand = 'Ampersand',
   Question = 'Question',
+  QuestionDot = 'QuestionDot',
+  Underscore = 'Underscore',
+  Backtick = 'Backtick',
+  DollarBrace = 'DollarBrace',
 
   // Delimiters
   LeftParen = 'LeftParen',
@@ -66,6 +96,14 @@ export enum TokenType {
   Event = 'Event',
   Emit = 'Emit',
   Error = 'Error',
+  Transfer = 'Transfer',
+  MintTo = 'MintTo',
+  Burn = 'Burn',
+  CloseAccount = 'CloseAccount',
+  Payer = 'Payer',
+  Space = 'Space',
+  HasOne = 'HasOne',
+  Close = 'Close',
 
   // Keywords — General
   Let = 'Let',
@@ -91,6 +129,7 @@ export enum TokenType {
   Import = 'Import',
   From = 'From',
   As = 'As',
+  In = 'In',
   Self = 'Self',
   Super = 'Super',
   True = 'True',
@@ -98,6 +137,13 @@ export enum TokenType {
   Null = 'Null',
   Async = 'Async',
   Await = 'Await',
+
+  // Error handling keywords
+  Try = 'Try',
+  Catch = 'Catch',
+  Throw = 'Throw',
+  Assert = 'Assert',
+  Require = 'Require',
 
   // Purp-specific keywords
   Client = 'Client',
@@ -153,6 +199,14 @@ export const KEYWORDS: Record<string, TokenType> = {
   'event': TokenType.Event,
   'emit': TokenType.Emit,
   'error': TokenType.Error,
+  'transfer': TokenType.Transfer,
+  'mint_to': TokenType.MintTo,
+  'burn': TokenType.Burn,
+  'close_account': TokenType.CloseAccount,
+  'payer': TokenType.Payer,
+  'space': TokenType.Space,
+  'has_one': TokenType.HasOne,
+  'close': TokenType.Close,
   'let': TokenType.Let,
   'const': TokenType.Const,
   'fn': TokenType.Fn,
@@ -176,6 +230,7 @@ export const KEYWORDS: Record<string, TokenType> = {
   'import': TokenType.Import,
   'from': TokenType.From,
   'as': TokenType.As,
+  'in': TokenType.In,
   'self': TokenType.Self,
   'super': TokenType.Super,
   'true': TokenType.True,
@@ -183,6 +238,11 @@ export const KEYWORDS: Record<string, TokenType> = {
   'null': TokenType.Null,
   'async': TokenType.Async,
   'await': TokenType.Await,
+  'try': TokenType.Try,
+  'catch': TokenType.Catch,
+  'throw': TokenType.Throw,
+  'assert': TokenType.Assert,
+  'require': TokenType.Require,
   'client': TokenType.Client,
   'frontend': TokenType.Frontend,
   'config': TokenType.Config,

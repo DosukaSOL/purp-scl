@@ -57,9 +57,9 @@ test('parse account declaration', () => {
   `);
   const prog = ast.body[0] as any;
   assert(prog.body.length === 1, 'Should have 1 member');
-  assert(prog.body[0].type === 'AccountDeclaration', 'Should be AccountDeclaration');
-  assert(prog.body[0].name === 'User', 'Account name should be User');
-  assert(prog.body[0].fields.length === 2, 'Should have 2 fields');
+  assert(prog.body[0].kind === 'AccountDeclaration', 'Should be AccountDeclaration');
+  assert((prog.body[0] as any).name === 'User', 'Account name should be User');
+  assert((prog.body[0] as any).fields.length === 2, 'Should have 2 fields');
 });
 
 test('parse instruction', () => {
@@ -77,10 +77,11 @@ test('parse instruction', () => {
   const prog = ast.body[0] as any;
   assert(prog.body.length === 1, 'Should have 1 member');
   const instr = prog.body[0];
-  assert(instr.type === 'InstructionDeclaration', 'Should be InstructionDeclaration');
+  assert(instr.kind === 'InstructionDeclaration', 'Should be InstructionDeclaration');
   assert(instr.name === 'initialize', 'Instruction name should be initialize');
-  assert(instr.isPublic === true, 'Should be public');
-  assert(instr.params.length === 3, 'Should have 3 params');
+  assert(instr.visibility === 'pub', 'Should be public');
+  assert(instr.accounts.length === 2, 'Should have 2 account params');
+  assert(instr.params.length === 1, 'Should have 1 value param');
 });
 
 test('parse event declaration', () => {
@@ -91,7 +92,7 @@ test('parse event declaration', () => {
   `);
   const prog = ast.body[0] as any;
   const event = prog.body[0];
-  assert(event.type === 'EventDeclaration', 'Should be EventDeclaration');
+  assert(event.kind === 'EventDeclaration', 'Should be EventDeclaration');
   assert(event.name === 'Transfer', 'Event name should be Transfer');
   assert(event.fields.length === 3, 'Should have 3 fields');
 });
@@ -99,22 +100,26 @@ test('parse event declaration', () => {
 test('parse error declaration', () => {
   const ast = parse(`
     program Test {
-      error InsufficientFunds = "Not enough balance"
+      error AppErrors {
+        InsufficientFunds = "Not enough balance"
+      }
     }
   `);
   const prog = ast.body[0] as any;
   const err = prog.body[0];
-  assert(err.type === 'ErrorDeclaration', 'Should be ErrorDeclaration');
-  assert(err.name === 'InsufficientFunds', 'Error name should be InsufficientFunds');
+  assert(err.kind === 'ErrorDeclaration', 'Should be ErrorDeclaration');
+  assert(err.name === 'AppErrors', 'Error name should be AppErrors');
+  assert(err.variants.length === 1, 'Should have 1 variant');
+  assert(err.variants[0].name === 'InsufficientFunds', 'Variant name should be InsufficientFunds');
 });
 
 test('parse import', () => {
   const ast = parse('import { Token, NFT } from "@purp/stdlib";');
   assert(ast.body.length === 1, 'Should have 1 import');
   const imp = ast.body[0] as any;
-  assert(imp.type === 'ImportDeclaration', 'Should be ImportDeclaration');
-  assert(imp.names.length === 2, 'Should import 2 names');
-  assert(imp.source === '@purp/stdlib', 'Source should be @purp/stdlib');
+  assert(imp.kind === 'ImportDeclaration', 'Should be ImportDeclaration');
+  assert(imp.items.length === 2, 'Should import 2 items');
+  assert(imp.path === '@purp/stdlib', 'Path should be @purp/stdlib');
 });
 
 test('parse struct declaration', () => {
@@ -152,8 +157,7 @@ test('parse const declaration', () => {
   const ast = parse('const MAX_SIZE: u64 = 1000;');
   assert(ast.body.length === 1, 'Should have 1 node');
   const c = ast.body[0] as any;
-  assert(c.type === 'ConstDeclaration' || c.type === 'VariableDeclaration', 
-    'Should be const declaration');
+  assert(c.kind === 'ConstDeclaration', 'Should be ConstDeclaration');
 });
 
 test('parse let statement in function', () => {
@@ -179,7 +183,7 @@ test('parse if/else statement', () => {
   `);
   const fn_ = ast.body[0] as any;
   const ifStmt = fn_.body[0];
-  assert(ifStmt.type === 'IfStatement', 'Should be IfStatement');
+  assert(ifStmt.kind === 'IfStatement', 'Should be IfStatement');
 });
 
 test('parse for loop', () => {
@@ -192,7 +196,7 @@ test('parse for loop', () => {
   `);
   const fn_ = ast.body[0] as any;
   const forStmt = fn_.body[0];
-  assert(forStmt.type === 'ForStatement', 'Should be ForStatement');
+  assert(forStmt.kind === 'ForStatement', 'Should be ForStatement');
 });
 
 test('parse emit statement', () => {
@@ -206,7 +210,7 @@ test('parse emit statement', () => {
   const prog = ast.body[0] as any;
   const instr = prog.body[0] as any;
   const emitStmt = instr.body[0];
-  assert(emitStmt.type === 'EmitStatement', 'Should be EmitStatement');
+  assert(emitStmt.kind === 'EmitStatement', 'Should be EmitStatement');
 });
 
 test('parse assert statement', () => {
@@ -220,7 +224,7 @@ test('parse assert statement', () => {
   const prog = ast.body[0] as any;
   const instr = prog.body[0] as any;
   const assertStmt = instr.body[0];
-  assert(assertStmt.type === 'AssertStatement', 'Should be AssertStatement');
+  assert(assertStmt.kind === 'AssertStatement', 'Should be AssertStatement');
 });
 
 test('parse complex program', () => {
@@ -244,7 +248,7 @@ test('parse complex program', () => {
       }
 
       event Deposited { user: pubkey, amount: u64 }
-      error Unauthorized = "Not authorized"
+      error AppErrors { Unauthorized = "Not authorized" }
     }
   `;
   const ast = parse(source);

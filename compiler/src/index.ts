@@ -1,6 +1,6 @@
 // ============================================================================
-// Purp Compiler — The Solana Coding Language
-// Main compiler entry point: source → lex → parse → analyze → codegen
+// Purp Compiler v0.2.0 — The Solana Coding Language
+// Main entry point: Lex → Parse → Type-check → Analyze → Generate
 // ============================================================================
 
 import { Lexer } from './lexer/index.js';
@@ -9,88 +9,112 @@ import { SemanticAnalyzer } from './semantic/index.js';
 import { RustCodegen } from './codegen/rust/index.js';
 import { TypeScriptCodegen } from './codegen/typescript/index.js';
 import { PurpDiagnostics } from './errors/index.js';
-import type { ProgramNode } from './ast/index.js';
+import { SourceMap, SourceMapBuilder } from './sourcemap/index.js';
 
 export interface CompileOptions {
   file?: string;
   target?: 'rust' | 'typescript' | 'both';
   debug?: boolean;
-  skipValidation?: boolean;
+  sourceMap?: boolean;
 }
 
 export interface CompileResult {
   success: boolean;
-  ast?: ProgramNode;
   rust?: string;
   typescript?: string;
   diagnostics: PurpDiagnostics;
+  sourceMap?: SourceMap;
 }
 
-export function compile(source: string, options: CompileOptions = {}): CompileResult {
-  const file = options.file ?? '<stdin>';
-  const target = options.target ?? 'both';
+export function compile(source: string, options?: CompileOptions): CompileResult {
+  const file = options?.file ?? '<stdin>';
+  const target = options?.target ?? 'both';
+  const debug = options?.debug ?? false;
   const diagnostics = new PurpDiagnostics();
 
   try {
-    // 1. Lex
-    if (options.debug) console.log('[purp] Lexing...');
+    // Phase 1: Lexing
+    if (debug) console.log('[purp] Lexing...');
     const lexer = new Lexer(source, file);
     const tokens = lexer.tokenize();
-    if (options.debug) console.log(`[purp] ${tokens.length} tokens`);
+    if (debug) console.log(`[purp] Produced ${tokens.length} tokens`);
 
-    // 2. Parse
-    if (options.debug) console.log('[purp] Parsing...');
+    // Phase 2: Parsing
+    if (debug) console.log('[purp] Parsing...');
     const parser = new Parser(tokens, file);
     const ast = parser.parse();
-    if (options.debug) console.log(`[purp] AST: ${ast.body.length} top-level nodes`);
+    if (debug) console.log(`[purp] AST has ${ast.body.length} top-level nodes`);
 
-    // 3. Semantic analysis
-    if (!options.skipValidation) {
-      if (options.debug) console.log('[purp] Analyzing...');
-      const analyzer = new SemanticAnalyzer(file);
-      const analysisDiags = analyzer.analyze(ast);
-      for (const d of analysisDiags.getAll()) {
-        diagnostics.add(d);
-      }
-      if (diagnostics.hasErrors()) {
-        return { success: false, ast, diagnostics };
-      }
+    // Phase 3: Semantic Analysis + Type Checking
+    if (debug) console.log('[purp] Analyzing...');
+    const analyzer = new SemanticAnalyzer(file);
+    const analyzerDiags = analyzer.analyze(ast);
+
+    // Merge diagnostics
+    for (const d of analyzerDiags.getAll()) {
+      diagnostics.add(d);
     }
 
-    // 4. Codegen
+    if (diagnostics.hasErrors()) {
+      return { success: false, diagnostics };
+    }
+
+    // Phase 4: Code Generation
     let rust: string | undefined;
     let typescript: string | undefined;
+    let sourceMap: SourceMap | undefined;
 
     if (target === 'rust' || target === 'both') {
-      if (options.debug) console.log('[purp] Generating Rust...');
+      if (debug) console.log('[purp] Generating Rust...');
       const rustGen = new RustCodegen();
       rust = rustGen.generate(ast);
+
+      // Build source map
+      if (options?.sourceMap) {
+        const smBuilder = new SourceMapBuilder(file);
+        const lines = rust.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          smBuilder.nextLine();
+        }
+        sourceMap = smBuilder.build();
+      }
     }
 
     if (target === 'typescript' || target === 'both') {
-      if (options.debug) console.log('[purp] Generating TypeScript...');
+      if (debug) console.log('[purp] Generating TypeScript...');
       const tsGen = new TypeScriptCodegen();
       typescript = tsGen.generate(ast);
     }
 
-    return { success: true, ast, rust, typescript, diagnostics };
+    return {
+      success: true,
+      rust,
+      typescript,
+      diagnostics,
+      sourceMap,
+    };
   } catch (err: any) {
-    diagnostics.error(
-      2001,
-      err.message ?? String(err),
-      undefined,
-      file,
-    );
+    // Capture parse/lex errors as diagnostics
+    if (err.code !== undefined && err.location !== undefined) {
+      diagnostics.add(err);
+    } else {
+      diagnostics.error(
+        2001, // ParseError
+        err.message ?? String(err),
+        undefined,
+        file,
+      );
+    }
     return { success: false, diagnostics };
   }
 }
 
-// Re-export everything
+// Re-export components for direct use
 export { Lexer } from './lexer/index.js';
 export { Parser } from './parser/index.js';
 export { SemanticAnalyzer } from './semantic/index.js';
 export { RustCodegen } from './codegen/rust/index.js';
 export { TypeScriptCodegen } from './codegen/typescript/index.js';
-export { PurpError, PurpDiagnostics, ErrorCode, ErrorSeverity } from './errors/index.js';
-export * from './ast/index.js';
-export { TokenType, type Token, KEYWORDS } from './lexer/tokens.js';
+export { PurpDiagnostics, PurpError, ErrorCode } from './errors/index.js';
+export { SourceMap, SourceMapBuilder } from './sourcemap/index.js';
+export { TypeChecker } from './typechecker/index.js';

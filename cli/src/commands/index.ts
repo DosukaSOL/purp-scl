@@ -13,6 +13,8 @@ import { auditCommand } from './audit.js';
 import { testCommand } from './test.js';
 import { runCommand } from './run.js';
 import { deployCommand } from './deploy.js';
+import { lintCommand } from './lint.js';
+import { formatCommand } from './format.js';
 
 export async function handleCommand(command: string, args: string[]): Promise<void> {
   const debug = args.includes('--debug');
@@ -31,11 +33,9 @@ export async function handleCommand(command: string, args: string[]): Promise<vo
     case 'check':
       return checkCommand(args);
     case 'lint':
-      console.log('\x1b[36m⟡\x1b[0m Linting... (not yet implemented in v0.1)');
-      break;
+      return lintCommand(args);
     case 'format':
-      console.log('\x1b[36m⟡\x1b[0m Formatting... (not yet implemented in v0.1)');
-      break;
+      return formatCommand(args);
     case 'run':
       return runCommand(args);
     case 'deploy':
