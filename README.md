@@ -132,12 +132,16 @@ purp deploy --network devnet
 - `purp init` / `purp new` — scaffold projects from templates
 - `purp build` — compile `.purp` to Rust + TypeScript
 - `purp check` — type-check without building
-- `purp deploy` — deploy to Solana network
+- `purp deploy` — deploy to Solana network (via Anchor)
+- `purp install` — install Purp packages
+- `purp publish` — publish a Purp package
 - `purp generate` — scaffold instructions, accounts, events, tokens, NFTs
 - `purp doctor` — check system dependencies
 - `purp dev` — watch mode with live recompilation
 - `purp audit` — security scanning
 - `purp test` — run tests
+- `purp lint` — lint Purp source files
+- `purp format` — format Purp source files
 - `purp clean` — remove build artifacts
 
 ### 📦 Standard Library (`@purp/stdlib`)
@@ -201,8 +205,10 @@ pub instruction transfer(
 ```
 event Transferred { from: pubkey, amount: u64 }
 
-error InsufficientFunds = "Not enough balance"
-error Unauthorized = "You are not authorized"
+error Errors {
+  InsufficientFunds = "Not enough balance",
+  Unauthorized = "You are not authorized"
+}
 ```
 
 ### Client Block
@@ -285,22 +291,33 @@ purp-scl/
 │       ├── lexer/      # Tokenizer
 │       ├── parser/     # Recursive descent parser
 │       ├── ast/        # Abstract Syntax Tree definitions
-│       ├── semantic/   # Semantic analysis & validation
+│       ├── semantic/   # Semantic analysis & type checking
 │       ├── codegen/    # Code generation
 │       │   ├── rust/   # → Anchor-compatible Rust
 │       │   └── typescript/ # → TypeScript SDK
+│       ├── typechecker/ # Full type checker with inference
+│       ├── formatter/  # Code formatter (purp fmt)
+│       ├── linter/     # Linter with configurable rules
+│       ├── sourcemap/  # Source map generation for debugging
+│       ├── plugins/    # Plugin system for custom codegen & lint rules
 │       └── errors/     # Error types & diagnostics
 ├── cli/                # Command-line interface
 │   └── src/
-│       ├── commands/   # All CLI commands
+│       ├── commands/   # 18 CLI commands (init, build, deploy, install, ...)
 │       └── utils/      # CLI utilities
+├── lsp/                # Language Server Protocol implementation
+│   └── src/
+│       └── server.ts   # LSP server (diagnostics, completion, hover, go-to-def)
+├── editor/             # Editor integrations
+│   └── vscode/         # VS Code extension
+│       └── syntaxes/   # TextMate grammar for .purp syntax highlighting
 ├── runtime/            # Runtime helpers (transaction builder, PDA, simulation)
-├── stdlib/             # Standard library modules
+├── stdlib/             # Standard library (13 modules)
 ├── templates/          # Project templates (11 templates)
 ├── examples/           # Example .purp files (7 examples)
 ├── docs/               # Documentation
-├── spec/               # Language specification
-├── tests/              # Test suite
+├── spec/               # Language specification & grammar
+├── tests/              # Test suite (55+ tests)
 ├── website/            # Documentation website
 ├── scripts/            # Build & utility scripts
 └── .github/            # CI/CD workflows & templates
@@ -310,7 +327,7 @@ purp-scl/
 
 See [ROADMAP.md](./ROADMAP.md) for the full roadmap.
 
-### v0.1.0 (Current)
+### v0.1.0 ✅
 - [x] Core compiler (lexer, parser, AST, codegen)
 - [x] Rust code generation (Anchor-compatible)
 - [x] TypeScript SDK generation
@@ -321,17 +338,33 @@ See [ROADMAP.md](./ROADMAP.md) for the full roadmap.
 - [x] 7 examples
 - [x] Documentation
 
-### v0.2.0 (Planned)
-- [ ] LSP (Language Server Protocol) for IDE support
-- [ ] VS Code extension with syntax highlighting
-- [ ] Improved error messages with suggestions
-- [ ] Frontend compilation to React/Next.js
+### v0.2.0 ✅
+- [x] LSP (Language Server Protocol) — diagnostics, completion, hover, go-to-def
+- [x] VS Code extension with TextMate syntax highlighting
+- [x] Full type checker with inference
+- [x] Source map generation
+- [x] Code formatter (`purp format`)
+- [x] Linter with configurable rules (`purp lint`)
+- [x] Improved error messages with suggestions
 
-### v0.3.0 (Future)
-- [ ] Package manager (`purp install`)
-- [ ] Plugin system
-- [ ] Debugger integration
+### v0.3.0 ✅ (Current)
+- [x] Package manager (`purp install` / `purp publish`) with Purp.toml + Purp.lock
+- [x] Plugin system (custom codegen, lint rules, build hooks)
+- [x] Real deployment pipeline (`purp deploy` → Anchor build + deploy)
+- [x] Dev watch mode with file system watching (`purp dev`)
+- [x] Real test runner with AST-based test extraction (`purp test`)
+- [x] Local transaction simulation engine
+- [x] Full stdlib: tokens (SPL instructions), NFTs (Metaplex/cNFTs), PDAs (SHA-256 derivation), CPI builder, wallet adapters, frontend components, web/HTTP client, AI agent tools
+
+### v0.4.0 (Next)
+- [ ] Frontend compilation (`frontend {}` → React/Next.js)
+- [ ] Client block codegen (`client {}` → working TypeScript)
+- [ ] Dead code elimination & optimization passes
+- [ ] Multi-file import resolution
+- [ ] Native testing framework with mocking
+- [ ] Debugger integration with breakpoints
 - [ ] Formal verification tools
+- [ ] Multi-program deployment & upgrade management
 
 ## Contributing
 
@@ -350,5 +383,5 @@ MIT — see [LICENSE](./LICENSE) for details.
 ---
 
 <p align="center">
-  <strong>Purp SCL v0.1.0</strong> — Built for the Solana ecosystem 💜
+  <strong>Purp SCL v0.3.0</strong> — Built for the Solana ecosystem 💜
 </p>

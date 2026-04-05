@@ -33,6 +33,8 @@ const HELP = `
   \x1b[36mformat\x1b[0m            Format Purp source files
   \x1b[36mrun\x1b[0m               Run a Purp script
   \x1b[36mdeploy\x1b[0m            Deploy to Solana
+  \x1b[36minstall\x1b[0m           Install Purp packages
+  \x1b[36mpublish\x1b[0m           Publish a Purp package
   \x1b[36mdoctor\x1b[0m            Check system dependencies
   \x1b[36mgenerate\x1b[0m <type>   Generate boilerplate (instruction, account, etc.)
   \x1b[36mdocs\x1b[0m              Open Purp documentation

@@ -15,6 +15,7 @@ import { runCommand } from './run.js';
 import { deployCommand } from './deploy.js';
 import { lintCommand } from './lint.js';
 import { formatCommand } from './format.js';
+import { installCommand, publishCommand } from './install.js';
 
 export async function handleCommand(command: string, args: string[]): Promise<void> {
   const debug = args.includes('--debug');
@@ -40,6 +41,10 @@ export async function handleCommand(command: string, args: string[]): Promise<vo
       return runCommand(args);
     case 'deploy':
       return deployCommand(args);
+    case 'install':
+      return installCommand(args);
+    case 'publish':
+      return publishCommand(args);
     case 'doctor':
       return doctorCommand();
     case 'generate':

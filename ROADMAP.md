@@ -1,6 +1,6 @@
 # Roadmap
 
-## v0.1.0 — MVP (Current Release)
+## v0.1.0 — MVP ✅
 
 ### Compiler
 - [x] Lexer with ~100 token types including Solana-native keywords
@@ -15,11 +15,8 @@
 - [x] `purp init` — project scaffolding with templates
 - [x] `purp build` — compile .purp to Rust + TypeScript
 - [x] `purp check` — type-checking without building
-- [x] `purp deploy` — deploy to Solana network
-- [x] `purp dev` — watch mode with auto-recompilation
 - [x] `purp generate` — code generation for common patterns
 - [x] `purp doctor` — system dependency checker
-- [x] `purp test` — test runner
 - [x] `purp audit` — security scanning
 - [x] `purp clean` — build artifact cleanup
 
@@ -39,48 +36,100 @@
 
 ---
 
-## v0.2.0 — Developer Experience (Planned)
+## v0.2.0 — Developer Experience ✅
 
 ### Language Server Protocol (LSP)
-- [ ] Diagnostics (errors/warnings in editor)
-- [ ] Go-to-definition
-- [ ] Hover information
-- [ ] Auto-completion
-- [ ] Signature help
+- [x] Diagnostics (errors/warnings in editor)
+- [x] Go-to-definition
+- [x] Hover information
+- [x] Auto-completion
+- [x] Signature help
 
 ### VS Code Extension
-- [ ] Syntax highlighting for .purp files
-- [ ] Snippets for common patterns
-- [ ] Integrated error messages
-- [ ] Build/deploy commands from command palette
+- [x] TextMate grammar syntax highlighting for .purp files
+- [x] Snippets for common patterns
+- [x] Integrated error messages
+- [x] Build/deploy commands from command palette
 
 ### Compiler Improvements
-- [ ] Better error messages with suggestions ("Did you mean...?")
-- [ ] Source maps for debugging
-- [ ] Incremental compilation
-- [ ] Import resolution across files
+- [x] Full type checker with type inference
+- [x] Better error messages with suggestions ("Did you mean...?")
+- [x] Source maps for debugging
+- [x] Code formatter (`purp format`)
+- [x] Linter with configurable rules (`purp lint`)
 
-### Frontend Compilation
-- [ ] Compile `frontend {}` blocks to React components
-- [ ] Compile `style {}` blocks to CSS
-- [ ] Next.js project generation
-- [ ] Wallet adapter integration
+### Testing
+- [x] 55+ tests (28 lexer + 17 parser + 10 compiler)
 
 ---
 
-## v0.3.0 — Ecosystem (Future)
+## v0.3.0 — Ecosystem ✅ (Current Release)
 
 ### Package Manager
-- [ ] `purp install <package>` — install Purp packages
-- [ ] `purp publish` — publish to Purp registry
-- [ ] Package resolution and dependency management
-- [ ] purp.lock file
+- [x] `purp install <package>` — install Purp packages
+- [x] `purp publish` — publish to Purp registry
+- [x] Purp.toml for dependency management
+- [x] Purp.lock file generation
+- [x] Built-in @purp/* package resolution
+- [x] npm backing package integration
 
 ### Plugin System
-- [ ] Custom codegen targets
-- [ ] Pre/post build hooks
-- [ ] Custom lint rules
-- [ ] Third-party integrations
+- [x] PurpPlugin interface (setup, preBuild, postBuild, codegen, lintRules, transform)
+- [x] PluginManager with config loading from Purp.toml
+- [x] Dynamic plugin loading via import()
+- [x] Custom codegen targets
+- [x] Pre/post build hooks
+- [x] Custom lint rules
+
+### CLI Upgrades
+- [x] Real `purp deploy` — Anchor build + deploy pipeline with cluster config
+- [x] Real `purp dev` — native file watching with debounced rebuilds
+- [x] Real `purp test` — AST-based test block extraction and execution
+- [x] `purp install` / `purp publish` — package management commands
+
+### Runtime Upgrades
+- [x] Full simulation engine with account state management
+- [x] System Program instruction simulation (Transfer, CreateAccount)
+- [x] Compute unit estimation and fee calculation
+- [x] Multi-instruction transaction simulation
+
+### Standard Library Upgrades
+- [x] **tokens**: Full SPL Token instruction builders (InitializeMint, Transfer, MintTo, Burn, CloseAccount), ATA derivation, validation
+- [x] **nfts**: Metaplex metadata, off-chain metadata generation, compressed NFT configs, Merkle tree sizing, royalty calculation
+- [x] **pdas**: Real PDA derivation with SHA-256, findProgramAddress, createProgramAddress, Base58 encoding, common PDA patterns (metadata, edition, vault)
+- [x] **cpi**: CPIBuilder fluent API, AccountMeta helpers, System/Token/Memo CPI constructors, validation
+- [x] **wallet**: 7 wallet adapters (Phantom, Solflare, Backpack, etc.), cluster endpoints, wallet setup code generation, SOL/lamport conversion
+- [x] **frontend**: Full dApp HTML scaffold, React component generators, transaction forms, NFT gallery, notification area, theme system
+- [x] **web**: HTTP client with retries/timeout, Solana JSON-RPC helper, OpenAPI spec generation, WebSocket client, CORS/security headers
+- [x] **ai**: AI agent config, tool definitions for Solana (transfer, balance, swap, etc.), system prompt generation, conversation management, capability-based tool filtering
+
+---
+
+## v0.4.0 — Production (Next)
+
+### Frontend Compilation
+- [ ] Compile `frontend {}` blocks to React components
+- [ ] Compile `client {}` blocks to working TypeScript SDK
+- [ ] Compile `style {}` blocks to CSS
+- [ ] Next.js project generation
+- [ ] Wallet adapter integration in generated output
+
+### Optimization
+- [ ] Dead code elimination
+- [ ] Account space optimization
+- [ ] Instruction batching suggestions
+- [ ] Incremental compilation
+
+### Multi-File Support
+- [ ] Import resolution across .purp files
+- [ ] Module system (mod, use)
+- [ ] Re-exports and barrel files
+
+### Testing Framework
+- [ ] Native Purp test syntax (`test "name" { ... }`)
+- [ ] Mocking framework for accounts and programs
+- [ ] Coverage reporting
+- [ ] Fuzzing support
 
 ### Debugger
 - [ ] Step-through debugging of .purp files
@@ -88,37 +137,17 @@
 - [ ] Variable inspection
 - [ ] Call stack navigation
 
-### Advanced Features
-- [ ] Formal verification integration
-- [ ] Gas/compute unit estimation
-- [ ] Account size calculator
-- [ ] Migration tooling
-
----
-
-## v0.4.0 — Production (Future)
-
-### Optimization
-- [ ] Dead code elimination
-- [ ] Account space optimization
-- [ ] Instruction batching suggestions
-
-### Testing Framework
-- [ ] Native Purp test syntax
-- [ ] Mocking framework
-- [ ] Coverage reporting
-- [ ] Fuzzing support
-
 ### Deployment
 - [ ] Multi-program deployment
-- [ ] Upgrade management
+- [ ] Upgrade management with versioning
 - [ ] Rollback support
-- [ ] Environment management
+- [ ] Environment management (dev/staging/prod)
 
-### Monitoring
-- [ ] On-chain analytics integration
-- [ ] Error tracking
-- [ ] Performance monitoring
+### Advanced Features
+- [ ] Formal verification integration
+- [ ] Compute unit estimation in the editor
+- [ ] Account size calculator
+- [ ] Migration tooling between program versions
 
 ---
 
