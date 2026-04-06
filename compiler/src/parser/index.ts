@@ -1448,6 +1448,7 @@ export class Parser {
       [TokenType.PlusAssign]: '+=',
       [TokenType.MinusAssign]: '-=',
       [TokenType.StarAssign]: '*=',
+      [TokenType.StarStarAssign]: '**=',
       [TokenType.SlashAssign]: '/=',
       [TokenType.PercentAssign]: '%=',
       [TokenType.AmpersandAssign]: '&=',
@@ -1455,6 +1456,7 @@ export class Parser {
       [TokenType.CaretAssign]: '^=',
       [TokenType.ShiftLeftAssign]: '<<=',
       [TokenType.ShiftRightAssign]: '>>=',
+      [TokenType.NullishCoalesceAssign]: '??=',
     };
     const ct = this.currentToken().type;
     if (ct in assignOps) {
@@ -1487,7 +1489,7 @@ export class Parser {
   }
 
   private parseTernary(): AST.Expression {
-    const expr = this.parseOr();
+    const expr = this.parseNullishCoalesce();
     if (this.check(TokenType.Question) && !this.check(TokenType.QuestionDot)) {
       this.advance();
       const consequent = this.parseExpression();
@@ -1496,6 +1498,16 @@ export class Parser {
       return { kind: 'TernaryExpr', condition: expr, consequent, alternate, span: { start: expr.span.start, end: alternate.span.end } };
     }
     return expr;
+  }
+
+  private parseNullishCoalesce(): AST.Expression {
+    let left = this.parseOr();
+    while (this.check(TokenType.NullishCoalesce)) {
+      const op = this.advance().value;
+      const right = this.parseOr();
+      left = { kind: 'BinaryExpr', operator: op, left, right, span: { start: left.span.start, end: right.span.end } };
+    }
+    return left;
   }
 
   private parseOr(): AST.Expression {
@@ -1585,14 +1597,32 @@ export class Parser {
       const right = this.parseMultiplicative();
       left = { kind: 'BinaryExpr', operator: op, left, right, span: { start: left.span.start, end: right.span.end } };
     }
+    // Range expressions: expr..expr or expr..=expr
+    if (this.check(TokenType.DotDot) || this.check(TokenType.DotDotEquals)) {
+      const inclusive = this.currentToken().type === TokenType.DotDotEquals;
+      this.advance();
+      const end = this.parseMultiplicative();
+      return { kind: 'RangeExpr', start: left, end, inclusive, span: { start: left.span.start, end: end.span.end } } as AST.RangeExpr;
+    }
     return left;
   }
 
   private parseMultiplicative(): AST.Expression {
-    let left = this.parseCast();
+    let left = this.parseExponentiation();
     while (this.check(TokenType.Star) || this.check(TokenType.Slash) || this.check(TokenType.Percent)) {
       const op = this.advance().value;
-      const right = this.parseCast();
+      const right = this.parseExponentiation();
+      left = { kind: 'BinaryExpr', operator: op, left, right, span: { start: left.span.start, end: right.span.end } };
+    }
+    return left;
+  }
+
+  // Exponentiation: right-associative, higher precedence than multiplicative
+  private parseExponentiation(): AST.Expression {
+    let left = this.parseCast();
+    if (this.check(TokenType.StarStar)) {
+      const op = this.advance().value;
+      const right = this.parseExponentiation(); // right-associative
       left = { kind: 'BinaryExpr', operator: op, left, right, span: { start: left.span.start, end: right.span.end } };
     }
     return left;
@@ -1726,7 +1756,13 @@ export class Parser {
         this.advance();
         const elements: AST.Expression[] = [];
         while (!this.check(TokenType.RightBracket) && !this.isAtEnd()) {
-          elements.push(this.parseExpression());
+          if (this.check(TokenType.DotDotDot)) {
+            const spreadStart = this.advance().span.start;
+            const inner = this.parseExpression();
+            elements.push({ kind: 'SpreadExpr', expression: inner, span: { start: spreadStart, end: inner.span.end } } as AST.SpreadExpr);
+          } else {
+            elements.push(this.parseExpression());
+          }
           this.match(TokenType.Comma);
         }
         const end = this.expect(TokenType.RightBracket);

@@ -259,6 +259,63 @@ test('parse complex program', () => {
   assert(prog.body.length === 4, 'Program should have account + instruction + event + error');
 });
 
+// === New expression parsing tests (v1.1) ===
+
+test('parse exponentiation expression **', () => {
+  const ast = parse('program Test { fn main() { let x = 2 ** 3 } }');
+  const prog = ast.body[0] as any;
+  const fn = prog.body[0];
+  const stmt = fn.body[0];
+  assert(stmt.value.kind === 'BinaryExpr', 'Should be binary expr');
+  assert(stmt.value.operator === '**', 'Operator should be **');
+});
+
+test('parse nullish coalescing expression ??', () => {
+  const ast = parse('program Test { fn main() { let x = a ?? b } }');
+  const prog = ast.body[0] as any;
+  const fn = prog.body[0];
+  const stmt = fn.body[0];
+  assert(stmt.value.kind === 'BinaryExpr', 'Should be binary expr');
+  assert(stmt.value.operator === '??', 'Operator should be ??');
+});
+
+test('parse spread in array literal', () => {
+  const ast = parse('program Test { fn main() { let x = [...arr, 1] } }');
+  const prog = ast.body[0] as any;
+  const fn = prog.body[0];
+  const stmt = fn.body[0];
+  assert(stmt.value.kind === 'ArrayExpr', 'Should be array expr');
+  assert(stmt.value.elements[0].kind === 'SpreadExpr', 'First element should be spread');
+});
+
+test('parse **= assignment', () => {
+  const ast = parse('program Test { fn main() { x **= 2 } }');
+  const prog = ast.body[0] as any;
+  const fn = prog.body[0];
+  const stmt = fn.body[0];
+  assert(stmt.kind === 'AssignmentStatement', 'Should be assignment');
+  assert(stmt.operator === '**=', 'Operator should be **=');
+});
+
+test('parse ??= assignment', () => {
+  const ast = parse('program Test { fn main() { x ??= b } }');
+  const prog = ast.body[0] as any;
+  const fn = prog.body[0];
+  const stmt = fn.body[0];
+  assert(stmt.kind === 'AssignmentStatement', 'Should be assignment');
+  assert(stmt.operator === '??=', 'Operator should be ??=');
+});
+
+test('right-associative exponentiation: 2 ** 3 ** 2', () => {
+  const ast = parse('program Test { fn main() { let x = 2 ** 3 ** 2 } }');
+  const prog = ast.body[0] as any;
+  const fn = prog.body[0];
+  const expr = fn.body[0].value;
+  // 2 ** (3 ** 2) — right side should also be BinaryExpr
+  assert(expr.kind === 'BinaryExpr', 'Should be binary');
+  assert(expr.right.kind === 'BinaryExpr', 'Right should be nested ** (right-associative)');
+});
+
 console.log(`\n  Results: ${passed} passed, ${failed} failed, ${passed + failed} total\n`);
 
 if (failed > 0) {

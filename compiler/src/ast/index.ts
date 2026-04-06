@@ -372,7 +372,7 @@ export interface AssignmentStatement extends BaseNode {
   kind: 'AssignmentStatement';
   target: Expression;
   value: Expression;
-  operator: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^=' | '<<=' | '>>=';
+  operator: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^=' | '<<=' | '>>=' | '**=' | '??=';
 }
 
 export interface ExpressionStatement extends BaseNode {
@@ -449,7 +449,7 @@ export interface CPICall extends BaseNode {
 
 export interface SPLOperation extends BaseNode {
   kind: 'SPLOperation';
-  operation: 'transfer' | 'mint_to' | 'burn' | 'close_account' | 'create_associated_token_account';
+  operation: 'transfer' | 'mint_to' | 'burn' | 'close_account' | 'create_associated_token_account' | 'approve' | 'revoke';
   args: { name: string; value: Expression }[];
 }
 
@@ -609,6 +609,7 @@ export type Expression =
   | RangeExpr
   | CastExpr
   | TryExpr
+  | SpreadExpr
   | SolLiteral
   | LamportsLiteral;
 
@@ -751,6 +752,11 @@ export interface SolLiteral extends BaseNode {
 export interface LamportsLiteral extends BaseNode {
   kind: 'LamportsLiteral';
   amount: number;
+}
+
+export interface SpreadExpr extends BaseNode {
+  kind: 'SpreadExpr';
+  expression: Expression;
 }
 
 // --- AST Node (union of all) ---

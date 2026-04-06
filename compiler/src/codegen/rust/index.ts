@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp Rust Code Generator v1.0.0 — The Solana Coding Language
+// Purp Rust Code Generator v1.1.0 — The Solana Coding Language
 // Generates Anchor-compatible Rust from Purp AST
 // Complete with: generics, closures, assert/require, PDA seeds,
 // full account constraints, CPI, SPL token ops, test blocks,
@@ -61,8 +61,8 @@ export class RustCodegen {
 
   private emitHeader(): void {
     this.emit('use anchor_lang::prelude::*;');
-    this.emit('use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer as SplTransfer, MintTo, Burn, CloseAccount as SplCloseAccount};');
-    this.emit('use anchor_spl::associated_token::AssociatedToken;');
+    this.emit('use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer as SplTransfer, MintTo, Burn, CloseAccount as SplCloseAccount, Approve, Revoke};');
+    this.emit('use anchor_spl::associated_token::{AssociatedToken, Create as CreateAta};');
     this.emit('');
     this.emit(`declare_id!(${this.programId});`);
     this.emit('');
@@ -534,7 +534,14 @@ export class RustCodegen {
       }
       case 'AssignmentStatement': {
         const target = this.emitExprStr(stmt.target, accounts);
-        this.emit(`${target} ${stmt.operator} ${this.emitExprStr(stmt.value)};`);
+        const value = this.emitExprStr(stmt.value);
+        if (stmt.operator === '**=') {
+          this.emit(`${target} = ${target}.pow(${value} as u32);`);
+        } else if (stmt.operator === '??=') {
+          this.emit(`${target} = ${target}.unwrap_or(${value});`);
+        } else {
+          this.emit(`${target} ${stmt.operator} ${value};`);
+        }
         break;
       }
       case 'ExpressionStatement':
@@ -829,6 +836,59 @@ export class RustCodegen {
         this.emit('token::close_account(cpi_ctx)?;');
         break;
       }
+      case 'approve': {
+        this.emit('let cpi_accounts = Approve {');
+        this.indent++;
+        this.emit(`to: ${getArg('to')}.to_account_info(),`);
+        this.emit(`delegate: ${getArg('delegate')}.to_account_info(),`);
+        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.indent--;
+        this.emit('};');
+        this.emit('let cpi_ctx = CpiContext::new(');
+        this.indent++;
+        this.emit('ctx.accounts.token_program.to_account_info(),');
+        this.emit('cpi_accounts,');
+        this.indent--;
+        this.emit(');');
+        this.emit(`token::approve(cpi_ctx, ${getArg('amount')})?;`);
+        break;
+      }
+      case 'revoke': {
+        this.emit('let cpi_accounts = Revoke {');
+        this.indent++;
+        this.emit(`source: ${getArg('source')}.to_account_info(),`);
+        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.indent--;
+        this.emit('};');
+        this.emit('let cpi_ctx = CpiContext::new(');
+        this.indent++;
+        this.emit('ctx.accounts.token_program.to_account_info(),');
+        this.emit('cpi_accounts,');
+        this.indent--;
+        this.emit(');');
+        this.emit('token::revoke(cpi_ctx)?;');
+        break;
+      }
+      case 'create_associated_token_account': {
+        this.emit('let cpi_accounts = CreateAta {');
+        this.indent++;
+        this.emit(`payer: ${getArg('payer')}.to_account_info(),`);
+        this.emit(`associated_token: ${getArg('account')}.to_account_info(),`);
+        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.emit(`mint: ${getArg('mint')}.to_account_info(),`);
+        this.emit('system_program: ctx.accounts.system_program.to_account_info(),');
+        this.emit('token_program: ctx.accounts.token_program.to_account_info(),');
+        this.indent--;
+        this.emit('};');
+        this.emit('let cpi_ctx = CpiContext::new(');
+        this.indent++;
+        this.emit('ctx.accounts.associated_token_program.to_account_info(),');
+        this.emit('cpi_accounts,');
+        this.indent--;
+        this.emit(');');
+        this.emit('anchor_spl::associated_token::create(cpi_ctx)?;');
+        break;
+      }
     }
   }
 
@@ -872,6 +932,8 @@ export class RustCodegen {
         return `${this.emitExprStr(expr.object)}[${this.emitExprStr(expr.index)}]`;
       case 'ArrayExpr':
         return `vec![${expr.elements.map(e => this.emitExprStr(e)).join(', ')}]`;
+      case 'SpreadExpr':
+        return `${this.emitExprStr(expr.expression)}.into_iter()`;
       case 'ObjectExpr':
         return `{ ${expr.properties.map(p => `${this.toSnakeCase(p.key)}: ${this.emitExprStr(p.value)}`).join(', ')} }`;
       case 'TupleExpr':
@@ -904,8 +966,15 @@ export class RustCodegen {
   private emitBinaryExpr(expr: AST.BinaryExpr): string {
     const left = this.emitExprStr(expr.left);
     const right = this.emitExprStr(expr.right);
-    // All operators including bitwise work the same in Rust
-    return `(${left} ${expr.operator} ${right})`;
+    // Map operators that differ in Rust
+    switch (expr.operator) {
+      case '??':
+        return `${left}.unwrap_or(${right})`;
+      case '**':
+        return `${left}.pow(${right} as u32)`;
+      default:
+        return `(${left} ${expr.operator} ${right})`;
+    }
   }
 
   private emitCallExpr(expr: AST.CallExpr): string {

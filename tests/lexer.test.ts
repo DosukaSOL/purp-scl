@@ -192,6 +192,39 @@ test('import from', () => {
   assertTokenTypes('import from', [TokenType.Import, TokenType.From]);
 });
 
+// === New operator tokens (v1.1) ===
+
+test('exponentiation operator **', () => {
+  assertTokenTypes('2 ** 3', [TokenType.Number, TokenType.StarStar, TokenType.Number]);
+});
+
+test('exponentiation assign **=', () => {
+  assertTokenTypes('x **= 2', [TokenType.Identifier, TokenType.StarStarAssign, TokenType.Number]);
+});
+
+test('nullish coalescing ??', () => {
+  assertTokenTypes('a ?? b', [TokenType.Identifier, TokenType.NullishCoalesce, TokenType.Identifier]);
+});
+
+test('nullish coalescing assign ??=', () => {
+  assertTokenTypes('a ??= b', [TokenType.Identifier, TokenType.NullishCoalesceAssign, TokenType.Identifier]);
+});
+
+test('spread operator ...', () => {
+  assertTokenTypes('...arr', [TokenType.DotDotDot, TokenType.Identifier]);
+});
+
+test('spread in context with range', () => {
+  assertTokenTypes('0..10', [TokenType.Number, TokenType.DotDot, TokenType.Number]);
+});
+
+test('?? distinct from ?.', () => {
+  assertTokenTypes('a ?? b?.c', [
+    TokenType.Identifier, TokenType.NullishCoalesce,
+    TokenType.Identifier, TokenType.QuestionDot, TokenType.Identifier
+  ]);
+});
+
 console.log(`\n  Results: ${passed} passed, ${failed} failed, ${passed + failed} total\n`);
 
 if (failed > 0) {

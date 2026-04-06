@@ -16,6 +16,7 @@ export enum TokenType {
   Plus = 'Plus',
   Minus = 'Minus',
   Star = 'Star',
+  StarStar = 'StarStar',
   Slash = 'Slash',
   Percent = 'Percent',
 
@@ -23,6 +24,7 @@ export enum TokenType {
   PlusAssign = 'PlusAssign',
   MinusAssign = 'MinusAssign',
   StarAssign = 'StarAssign',
+  StarStarAssign = 'StarStarAssign',
   SlashAssign = 'SlashAssign',
   PercentAssign = 'PercentAssign',
   AmpersandAssign = 'AmpersandAssign',
@@ -30,6 +32,7 @@ export enum TokenType {
   CaretAssign = 'CaretAssign',
   ShiftLeftAssign = 'ShiftLeftAssign',
   ShiftRightAssign = 'ShiftRightAssign',
+  NullishCoalesceAssign = 'NullishCoalesceAssign',
 
   // Comparison operators
   Assign = 'Assign',
@@ -66,6 +69,8 @@ export enum TokenType {
   Ampersand = 'Ampersand',
   Question = 'Question',
   QuestionDot = 'QuestionDot',
+  NullishCoalesce = 'NullishCoalesce',
+  DotDotDot = 'DotDotDot',
   Underscore = 'Underscore',
   Backtick = 'Backtick',
   DollarBrace = 'DollarBrace',

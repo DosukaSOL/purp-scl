@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp TypeScript Code Generator v1.0.0 — The Solana Coding Language
+// Purp TypeScript Code Generator v1.1.0 — The Solana Coding Language
 // Generates Anchor-compatible TypeScript client SDK
 // Complete with: IDL types, instruction methods, account fetchers,
 // event listeners, error parsing, generics, tuples, template literals,
@@ -526,6 +526,7 @@ export class TypeScriptCodegen {
       case 'OptionalChainExpr': return `${this.emitTSExprStr(expr.object)}?.${this.toCamelCase(expr.property)}`;
       case 'IndexExpr': return `${this.emitTSExprStr(expr.object)}[${this.emitTSExprStr(expr.index)}]`;
       case 'ArrayExpr': return `[${expr.elements.map(e => this.emitTSExprStr(e)).join(', ')}]`;
+      case 'SpreadExpr': return `...${this.emitTSExprStr(expr.expression)}`;
       case 'ObjectExpr': return `{ ${expr.properties.map(p => `${p.key}: ${this.emitTSExprStr(p.value)}`).join(', ')} }`;
       case 'TupleExpr': return `[${expr.elements.map(e => this.emitTSExprStr(e)).join(', ')}]`;
       case 'LambdaExpr': {

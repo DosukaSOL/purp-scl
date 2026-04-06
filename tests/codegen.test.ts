@@ -305,5 +305,96 @@ test('compile returns diagnostics on error', () => {
   assert(r.diagnostics !== undefined, 'Should have diagnostics');
 });
 
+// === New codegen tests (v1.1) ===
+
+test('rust: ** generates .pow()', () => {
+  const r = compile(`
+    program Test {
+      fn calc() -> u64 {
+        return 2 ** 3
+      }
+    }
+  `);
+  assert(r.rust!.includes('.pow('), 'Should generate .pow() for **');
+});
+
+test('rust: ?? generates unwrap_or()', () => {
+  const r = compile(`
+    program Test {
+      fn fallback() {
+        let x = a ?? b
+      }
+    }
+  `);
+  assert(r.rust!.includes('unwrap_or('), 'Should generate unwrap_or() for ??');
+});
+
+test('rust: SpreadExpr generates into_iter()', () => {
+  const r = compile(`
+    program Test {
+      fn merge() {
+        let combined = [...items, 1]
+      }
+    }
+  `);
+  assert(r.rust!.includes('into_iter()'), 'Should generate into_iter() for spread');
+});
+
+test('ts: spread generates ...expr', () => {
+  const r = compile(`
+    program Test {
+      account Data { value: u64 }
+    }
+  `);
+  assert(r.success, 'Should compile');
+});
+
+test('rust: **= assignment generates .pow()', () => {
+  const r = compile(`
+    program Test {
+      fn calc() {
+        let mut x: u64 = 2
+        x **= 3
+      }
+    }
+  `);
+  assert(r.rust!.includes('.pow('), 'Should generate .pow() for **=');
+});
+
+test('idl: generates IDL JSON with instructions', () => {
+  const r = compile(`
+    program Vault {
+      account VaultData {
+        owner: pubkey
+        balance: u64
+      }
+      instruction deposit(amount: u64) {
+        accounts {
+          vault: VaultData
+          user: Signer
+        }
+      }
+    }
+  `);
+  assert(r.idl !== undefined, 'Should have IDL output');
+  const idl = JSON.parse(r.idl!);
+  assert(idl.name === 'vault', 'IDL name should be snake_case');
+  assert(idl.instructions.length === 1, 'Should have 1 instruction');
+  assert(idl.instructions[0].name === 'deposit', 'Instruction should be deposit');
+  assert(idl.accounts.length === 1, 'Should have 1 account');
+});
+
+test('idl: includes enum types', () => {
+  const r = compile(`
+    program Test {
+      enum Status { Active, Paused, Closed }
+    }
+  `);
+  const idl = JSON.parse(r.idl!);
+  assert(idl.types.length === 1, 'Should have 1 type');
+  assert(idl.types[0].type.kind === 'enum', 'Should be enum type');
+  assert(idl.types[0].type.variants.length === 3, 'Should have 3 variants');
+});
+
 console.log(`\n  Results: ${passed} passed, ${failed} failed, ${passed + failed} total\n`);
 if (failed > 0) process.exit(1);

@@ -189,6 +189,10 @@ export class Lexer {
         if (this.match('=')) return this.makeToken(TokenType.MinusAssign, '-=', start);
         return this.makeToken(TokenType.Minus, ch, start);
       case '*':
+        if (this.match('*')) {
+          if (this.match('=')) return this.makeToken(TokenType.StarStarAssign, '**=', start);
+          return this.makeToken(TokenType.StarStar, '**', start);
+        }
         if (this.match('=')) return this.makeToken(TokenType.StarAssign, '*=', start);
         return this.makeToken(TokenType.Star, ch, start);
       case '/':
@@ -231,6 +235,7 @@ export class Lexer {
         return this.makeToken(TokenType.Caret, ch, start);
       case '.':
         if (this.match('.')) {
+          if (this.match('.')) return this.makeToken(TokenType.DotDotDot, '...', start);
           if (this.match('=')) return this.makeToken(TokenType.DotDotEquals, '..=', start);
           return this.makeToken(TokenType.DotDot, '..', start);
         }
@@ -243,6 +248,10 @@ export class Lexer {
       case '#': return this.makeToken(TokenType.Hash, ch, start);
       case '@': return this.makeToken(TokenType.At, ch, start);
       case '?':
+        if (this.match('?')) {
+          if (this.match('=')) return this.makeToken(TokenType.NullishCoalesceAssign, '??=', start);
+          return this.makeToken(TokenType.NullishCoalesce, '??', start);
+        }
         if (this.match('.')) return this.makeToken(TokenType.QuestionDot, '?.', start);
         return this.makeToken(TokenType.Question, ch, start);
       case '`': {

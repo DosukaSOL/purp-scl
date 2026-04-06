@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp Semantic Analyzer v1.0.0 — The Solana Coding Language
+// Purp Semantic Analyzer v1.1.0 — The Solana Coding Language
 // Scope validation, symbol resolution, constraint checking
 // ============================================================================
 
@@ -270,6 +270,23 @@ export class SemanticAnalyzer {
     if (!targetType) {
       this.diagnostics.warning(ErrorCode.UndefinedType, `Type '${node.target}' not defined before impl block`, node.span.start, this.file);
     }
+
+    // Validate trait impl completeness
+    if (node.trait) {
+      const traitSym = this.scope.resolve(node.trait);
+      if (!traitSym) {
+        this.diagnostics.error(ErrorCode.UndefinedType, `Trait '${node.trait}' is not defined`, node.span.start, this.file);
+      } else if (traitSym.node && (traitSym.node as any).kind === 'TraitDeclaration') {
+        const traitDecl = traitSym.node as unknown as AST.TraitDeclaration;
+        const implMethodNames = new Set(node.methods.map(m => m.name));
+        for (const required of traitDecl.methods) {
+          if (!implMethodNames.has(required.name)) {
+            this.diagnostics.error(ErrorCode.MissingAccountConstraint, `impl ${node.trait} for ${node.target} is missing required method '${required.name}'`, node.span.start, this.file);
+          }
+        }
+      }
+    }
+
     for (const method of node.methods) {
       this.analyzeFunction(method);
     }
@@ -368,6 +385,7 @@ export class SemanticAnalyzer {
           this.analyzeStatements(arm.body);
           this.popScope();
         }
+        this.checkMatchExhaustiveness(stmt);
         break;
       case 'EmitStatement':
         if (!this.scope.isInInstruction()) {
@@ -413,6 +431,62 @@ export class SemanticAnalyzer {
         this.analyzeStatements(stmt.body);
         this.popScope();
         break;
+    }
+  }
+
+  // =========================================================================
+  // Match Exhaustiveness Checking
+  // =========================================================================
+
+  private checkMatchExhaustiveness(stmt: AST.MatchStatement): void {
+    // Check for wildcard/identifier catch-all pattern
+    const hasWildcard = stmt.arms.some(arm =>
+      arm.pattern.kind === 'WildcardPattern' ||
+      (arm.pattern.kind === 'IdentifierPattern' && !arm.guard)
+    );
+    if (hasWildcard) return; // Has catch-all, always exhaustive
+
+    // Try to resolve subject as an enum to check variant coverage
+    if (stmt.subject.kind === 'IdentifierExpr') {
+      const sym = this.scope.resolve(stmt.subject.name);
+      if (sym?.node && (sym.node as any).type) {
+        const typeName = typeof (sym.node as any).type === 'object' && (sym.node as any).type.name
+          ? (sym.node as any).type.name
+          : undefined;
+        if (typeName) {
+          const enumSym = this.scope.resolve(typeName);
+          if (enumSym?.node && (enumSym.node as any).kind === 'EnumDeclaration') {
+            const enumDecl = enumSym.node as unknown as AST.EnumDeclaration;
+            const variantNames = new Set(enumDecl.variants.map(v => v.name));
+            const coveredVariants = new Set<string>();
+            for (const arm of stmt.arms) {
+              if (arm.pattern.kind === 'EnumPattern') {
+                coveredVariants.add(arm.pattern.variant);
+              }
+            }
+            const missing = [...variantNames].filter(v => !coveredVariants.has(v));
+            if (missing.length > 0) {
+              this.diagnostics.warning(
+                ErrorCode.ParseError,
+                `Non-exhaustive match: missing variant(s) ${missing.map(m => `'${m}'`).join(', ')}. Add a wildcard '_' arm or cover all variants.`,
+                stmt.span.start,
+                this.file,
+              );
+            }
+            return;
+          }
+        }
+      }
+    }
+
+    // For non-enum matches without a wildcard, emit a warning
+    if (stmt.arms.length > 0 && !hasWildcard) {
+      this.diagnostics.warning(
+        ErrorCode.ParseError,
+        `Match may not be exhaustive. Consider adding a wildcard '_' arm.`,
+        stmt.span.start,
+        this.file,
+      );
     }
   }
 

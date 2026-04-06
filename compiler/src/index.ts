@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp Compiler v1.0.0 — The Solana Coding Language
+// Purp Compiler v1.1.0 — The Solana Coding Language
 // Main entry point: Lex → Parse → Type-check → Analyze → Generate
 // ============================================================================
 
@@ -8,6 +8,7 @@ import { Parser } from './parser/index.js';
 import { SemanticAnalyzer } from './semantic/index.js';
 import { RustCodegen } from './codegen/rust/index.js';
 import { TypeScriptCodegen } from './codegen/typescript/index.js';
+import { IDLCodegen } from './codegen/idl/index.js';
 import { PurpDiagnostics } from './errors/index.js';
 import { SourceMap, SourceMapBuilder } from './sourcemap/index.js';
 import { resolveImports } from './resolver/index.js';
@@ -27,6 +28,7 @@ export interface CompileResult {
   rust?: string;
   typescript?: string;
   frontend?: string;
+  idl?: string;
   diagnostics: PurpDiagnostics;
   sourceMap?: SourceMap;
 }
@@ -80,7 +82,13 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     let rust: string | undefined;
     let typescript: string | undefined;
     let frontend: string | undefined;
+    let idl: string | undefined;
     let sourceMap: SourceMap | undefined;
+
+    // Always generate IDL
+    if (debug) console.log('[purp] Generating IDL...');
+    const idlGen = new IDLCodegen();
+    idl = idlGen.generateJSON(ast);
 
     if (target === 'rust' || target === 'both') {
       if (debug) console.log('[purp] Generating Rust...');
@@ -116,6 +124,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       rust,
       typescript,
       frontend,
+      idl,
       diagnostics,
       sourceMap,
     };
