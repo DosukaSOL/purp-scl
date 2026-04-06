@@ -143,11 +143,23 @@ export class SemanticAnalyzer {
         this.analyzeTestBlock(node);
         break;
       case 'ClientBlock':
+        this.diagnostics.warning(
+          ErrorCode.UnsupportedFeature,
+          `client{} block "${node.name}" is TypeScript-only — see generated TypeScript SDK output`,
+          node.span?.start,
+          this.file,
+        );
         this.pushScope('block');
         this.analyzeStatements(node.body);
         this.popScope();
         break;
       case 'FrontendBlock':
+        this.diagnostics.warning(
+          ErrorCode.UnsupportedFeature,
+          `frontend{} block is TypeScript-only — see generated frontend output`,
+          node.span?.start,
+          this.file,
+        );
         this.pushScope('block');
         this.analyzeStatements(node.body);
         this.popScope();

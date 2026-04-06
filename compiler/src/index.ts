@@ -10,18 +10,23 @@ import { RustCodegen } from './codegen/rust/index.js';
 import { TypeScriptCodegen } from './codegen/typescript/index.js';
 import { PurpDiagnostics } from './errors/index.js';
 import { SourceMap, SourceMapBuilder } from './sourcemap/index.js';
+import { resolveImports } from './resolver/index.js';
+import * as path from 'node:path';
 
 export interface CompileOptions {
   file?: string;
   target?: 'rust' | 'typescript' | 'both';
   debug?: boolean;
   sourceMap?: boolean;
+  /** Resolve imports from other .purp files */
+  resolveImports?: boolean;
 }
 
 export interface CompileResult {
   success: boolean;
   rust?: string;
   typescript?: string;
+  frontend?: string;
   diagnostics: PurpDiagnostics;
   sourceMap?: SourceMap;
 }
@@ -42,8 +47,20 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     // Phase 2: Parsing
     if (debug) console.log('[purp] Parsing...');
     const parser = new Parser(tokens, file);
-    const ast = parser.parse();
+    let ast = parser.parse();
     if (debug) console.log(`[purp] AST has ${ast.body.length} top-level nodes`);
+
+    // Phase 2.5: Import Resolution
+    if (options?.resolveImports !== false) {
+      if (debug) console.log('[purp] Resolving imports...');
+      const baseDir = file !== '<stdin>' ? path.dirname(path.resolve(file)) : process.cwd();
+      ast = resolveImports(ast, {
+        baseDir,
+        searchPaths: [path.join(baseDir, 'purp_modules'), path.join(baseDir, 'node_modules', '@purp')],
+        diagnostics,
+      });
+      if (debug) console.log(`[purp] AST after resolution has ${ast.body.length} top-level nodes`);
+    }
 
     // Phase 3: Semantic Analysis + Type Checking
     if (debug) console.log('[purp] Analyzing...');
@@ -62,6 +79,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     // Phase 4: Code Generation
     let rust: string | undefined;
     let typescript: string | undefined;
+    let frontend: string | undefined;
     let sourceMap: SourceMap | undefined;
 
     if (target === 'rust' || target === 'both') {
@@ -84,12 +102,20 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       if (debug) console.log('[purp] Generating TypeScript...');
       const tsGen = new TypeScriptCodegen();
       typescript = tsGen.generate(ast);
+
+      // Generate frontend output if frontend{} blocks exist
+      const frontendGen = new TypeScriptCodegen();
+      const frontendOutput = frontendGen.generateFrontend(ast);
+      if (frontendOutput) {
+        frontend = frontendOutput;
+      }
     }
 
     return {
       success: true,
       rust,
       typescript,
+      frontend,
       diagnostics,
       sourceMap,
     };
@@ -118,3 +144,4 @@ export { TypeScriptCodegen } from './codegen/typescript/index.js';
 export { PurpDiagnostics, PurpError, ErrorCode } from './errors/index.js';
 export { SourceMap, SourceMapBuilder } from './sourcemap/index.js';
 export { TypeChecker } from './typechecker/index.js';
+export { resolveImports } from './resolver/index.js';

@@ -18,6 +18,7 @@ export class RustCodegen {
   private errors: Map<string, AST.ErrorDeclaration> = new Map();
   private structs: Map<string, AST.StructDeclaration> = new Map();
   private enums: Map<string, AST.EnumDeclaration> = new Map();
+  private pendingContextStructs: { name: string; accounts: AST.AccountParam[] }[] = [];
 
   generate(program: AST.ProgramNode): string {
     this.output = [];
@@ -99,6 +100,41 @@ export class RustCodegen {
       case 'ImportDeclaration':
         // Imports handled in header
         break;
+      case 'ClientBlock':
+        // Client blocks → TypeScript only (no Rust output)
+        this.emit('// client{} block — see generated TypeScript SDK');
+        this.emit('');
+        break;
+      case 'FrontendBlock':
+        // Frontend blocks → TypeScript/React only (no Rust output)
+        this.emit('// frontend{} block — see generated TypeScript/React output');
+        this.emit('');
+        break;
+      case 'ConfigBlock':
+        // Config blocks are used by the build system, not emitted in Rust
+        break;
+      case 'InstructionDeclaration':
+        // Standalone instruction (outside program{}) — wrap in a program module
+        this.emit('#[program]');
+        this.emit(`pub mod purp_program {`);
+        this.indent++;
+        this.emit('use super::*;');
+        this.emit('');
+        this.emitInstruction(node);
+        this.indent--;
+        this.emit('}');
+        this.emit('');
+        this.emitPendingContextStructs();
+        break;
+      case 'AccountDeclaration':
+        this.emitAccountDeclaration(node);
+        break;
+      case 'EventDeclaration':
+        this.emitEventDeclaration(node);
+        break;
+      case 'ErrorDeclaration':
+        this.emitErrorDeclaration(node);
+        break;
     }
   }
 
@@ -130,12 +166,20 @@ export class RustCodegen {
         case 'FunctionDeclaration':
           this.emitFunctionDeclaration(child);
           break;
+        case 'ClientBlock':
+        case 'FrontendBlock':
+        case 'ConfigBlock':
+          // These blocks don't produce Rust output
+          break;
       }
     }
 
     this.indent--;
     this.emit('}');
     this.emit('');
+
+    // Emit all context structs (outside program module)
+    this.emitPendingContextStructs();
 
     // Emit accounts, events, errors outside program module
     for (const child of node.body) {
@@ -184,32 +228,25 @@ export class RustCodegen {
     this.emit('}');
     this.emit('');
 
-    // Emit the context struct (accounts validation)
-    this.emitContextStruct(ctxName, node.accounts);
+    // Collect context struct for emission after program module closes
+    this.pendingContextStructs.push({ name: ctxName, accounts: node.accounts });
   }
 
-  private emitContextStruct(name: string, accounts: AST.AccountParam[]): void {
-    this.indent--;
-    this.emit('}');
-    this.emit('');
+  private emitPendingContextStructs(): void {
+    for (const { name, accounts } of this.pendingContextStructs) {
+      this.emit('#[derive(Accounts)]');
+      this.emit(`pub struct ${name}<'info> {`);
+      this.indent++;
 
-    this.emit('#[derive(Accounts)]');
-    this.emit(`pub struct ${name}<'info> {`);
-    this.indent++;
+      for (const acc of accounts) {
+        this.emitAccountField(acc);
+      }
 
-    for (const acc of accounts) {
-      this.emitAccountField(acc);
+      this.indent--;
+      this.emit('}');
+      this.emit('');
     }
-
-    this.indent--;
-    this.emit('}');
-    this.emit('');
-
-    // Re-open program module for next instruction
-    this.emit('#[program]');
-    this.emit(`pub mod ${this.toSnakeCase(this.programName)}_cont {`);
-    this.indent++;
-    this.emit('use super::*;');
+    this.pendingContextStructs = [];
   }
 
   private emitAccountField(acc: AST.AccountParam): void {

@@ -32,9 +32,13 @@ export async function buildCommand(args: string[]): Promise<void> {
 
   const rustOutDir = path.join(outDir, 'rust', 'src');
   const tsOutDir = path.join(outDir, 'typescript', 'src');
+  const frontendOutDir = path.join(outDir, 'frontend', 'src');
 
   if (target === 'rust' || target === 'both') ensureDir(rustOutDir);
-  if (target === 'typescript' || target === 'both') ensureDir(tsOutDir);
+  if (target === 'typescript' || target === 'both') {
+    ensureDir(tsOutDir);
+    ensureDir(frontendOutDir);
+  }
 
   let errors = 0;
   let warnings = 0;
@@ -67,6 +71,11 @@ export async function buildCommand(args: string[]): Promise<void> {
       fs.writeFileSync(outPath, result.typescript, 'utf-8');
     }
 
+    if (result.frontend) {
+      const outPath = path.join(frontendOutDir, `${baseName}.tsx`);
+      fs.writeFileSync(outPath, result.frontend, 'utf-8');
+    }
+
     console.log('\x1b[32m✓\x1b[0m');
   }
 
@@ -87,5 +96,6 @@ export async function buildCommand(args: string[]): Promise<void> {
   }
   if (target === 'typescript' || target === 'both') {
     console.log(`  TypeScript output:  ${tsOutDir}/`);
+    console.log(`  Frontend output:    ${frontendOutDir}/`);
   }
 }
