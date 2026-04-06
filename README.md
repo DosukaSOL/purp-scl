@@ -40,6 +40,7 @@ Purp eliminates the boilerplate of writing Solana programs by hand. Instead of j
 | Client code is separate from program | `client {}` block in the same file |
 | Frontend needs a separate project | `frontend {}` block with built-in components |
 | No standard way to handle tokens/NFTs | `@purp/stdlib` provides Token, NFT, PDA, CPI helpers |
+| AI agents need on-chain programs | Purp powers [PAW Agents](https://github.com/DosukaSOL/paw-agents) for autonomous AI on Solana |
 
 ## Quickstart
 
@@ -379,6 +380,10 @@ We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guideline
 ## License
 
 MIT — see [LICENSE](./LICENSE) for details.
+
+## See Also
+
+- **[PAW Agents](https://github.com/DosukaSOL/paw-agents)** — The operating system for autonomous AI workers. Purp can be used to write the on-chain Solana programs that PAW Agents interact with, enabling safe and traceable AI execution on-chain.
 
 ---
 
