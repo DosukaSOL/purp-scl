@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp AST Node Types v0.2.0 — The Solana Coding Language
+// Purp AST Node Types v1.0.0 — The Solana Coding Language
 // Complete Abstract Syntax Tree with generics, error handling, patterns,
 // destructuring, attributes, CPI, SPL ops, test blocks and more.
 // ============================================================================

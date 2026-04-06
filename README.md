@@ -317,7 +317,7 @@ purp-scl/
 ├── examples/           # Example .purp files (7 examples)
 ├── docs/               # Documentation
 ├── spec/               # Language specification & grammar
-├── tests/              # Test suite (55+ tests)
+├── tests/              # Test suite (136 tests across 9 suites)
 ├── website/            # Documentation website
 ├── scripts/            # Build & utility scripts
 └── .github/            # CI/CD workflows & templates
@@ -347,7 +347,7 @@ See [ROADMAP.md](./ROADMAP.md) for the full roadmap.
 - [x] Linter with configurable rules (`purp lint`)
 - [x] Improved error messages with suggestions
 
-### v0.3.0 ✅ (Current)
+### v0.3.0 ✅
 - [x] Package manager (`purp install` / `purp publish`) with Purp.toml + Purp.lock
 - [x] Plugin system (custom codegen, lint rules, build hooks)
 - [x] Real deployment pipeline (`purp deploy` → Anchor build + deploy)
@@ -356,15 +356,15 @@ See [ROADMAP.md](./ROADMAP.md) for the full roadmap.
 - [x] Local transaction simulation engine
 - [x] Full stdlib: tokens (SPL instructions), NFTs (Metaplex/cNFTs), PDAs (SHA-256 derivation), CPI builder, wallet adapters, frontend components, web/HTTP client, AI agent tools
 
-### v0.4.0 (Next)
-- [ ] Frontend compilation (`frontend {}` → React/Next.js)
-- [ ] Client block codegen (`client {}` → working TypeScript)
-- [ ] Dead code elimination & optimization passes
-- [ ] Multi-file import resolution
-- [ ] Native testing framework with mocking
-- [ ] Debugger integration with breakpoints
-- [ ] Formal verification tools
-- [ ] Multi-program deployment & upgrade management
+### v1.0.0 ✅ (Current)
+- [x] TypeChecker hardened — covers all statement/expression types with full type inference
+- [x] Linter expanded to 13 rules — Solana-specific best practices, full AST walker
+- [x] LSP expanded — 35+ hover entries, all symbol types
+- [x] Source map generator — real Base64 VLQ encoding
+- [x] `purp test` — real execution via AST-to-JS compilation
+- [x] `purp run` — compiles and executes via Node.js
+- [x] `purp docs` / `purp example` — full CLI reference and real code examples
+- [x] 136 tests across 9 suites (lexer, parser, compiler, codegen, formatter, linter, typechecker, semantic, sourcemap)
 
 ## Contributing
 
@@ -383,5 +383,5 @@ MIT — see [LICENSE](./LICENSE) for details.
 ---
 
 <p align="center">
-  <strong>Purp SCL v0.3.0</strong> — Built for the Solana ecosystem 💜
+  <strong>Purp SCL v1.0.0</strong> — Built for the Solana ecosystem 💜
 </p>

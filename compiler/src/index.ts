@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp Compiler v0.2.0 — The Solana Coding Language
+// Purp Compiler v1.0.0 — The Solana Coding Language
 // Main entry point: Lex → Parse → Type-check → Analyze → Generate
 // ============================================================================
 

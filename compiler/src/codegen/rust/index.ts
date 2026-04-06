@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp Rust Code Generator v0.2.0 — The Solana Coding Language
+// Purp Rust Code Generator v1.0.0 — The Solana Coding Language
 // Generates Anchor-compatible Rust from Purp AST
 // Complete with: generics, closures, assert/require, PDA seeds,
 // full account constraints, CPI, SPL token ops, test blocks,

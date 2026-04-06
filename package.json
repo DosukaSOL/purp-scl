@@ -1,6 +1,6 @@
 {
   "name": "purp-scl",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "description": "Purp — The Solana Coding Language. A Solana-native programming language and full-stack developer platform.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

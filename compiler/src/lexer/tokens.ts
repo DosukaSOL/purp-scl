@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp Token Types — The Solana Coding Language v0.2.0
+// Purp Token Types — The Solana Coding Language v1.0.0
 // ============================================================================
 
 export enum TokenType {

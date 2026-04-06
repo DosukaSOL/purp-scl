@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp Language Server Protocol (LSP) v0.2.0
+// Purp Language Server Protocol (LSP) v1.0.0
 // Provides IDE support: diagnostics, hover, completions, go-to-definition
 // ============================================================================
 
@@ -205,13 +205,37 @@ export class PurpLanguageServer {
       'u32': '**u32** — 32-bit unsigned integer (0 to 4,294,967,295)',
       'u64': '**u64** — 64-bit unsigned integer (0 to 18.4 quintillion)',
       'u128': '**u128** — 128-bit unsigned integer',
+      'i8': '**i8** — 8-bit signed integer (-128 to 127)',
+      'i16': '**i16** — 16-bit signed integer',
+      'i32': '**i32** — 32-bit signed integer',
       'i64': '**i64** — 64-bit signed integer',
+      'i128': '**i128** — 128-bit signed integer',
+      'f32': '**f32** — 32-bit floating point number',
       'f64': '**f64** — 64-bit floating point number',
       'bool': '**bool** — Boolean (true or false)',
       'string': '**string** — UTF-8 string',
+      'bytes': '**bytes** — Raw byte array',
       'pubkey': '**pubkey** — Solana public key (32 bytes)',
       'Signer': '**Signer** — A verified transaction signer',
       'Pubkey': '**Pubkey** — Solana public key',
+      'Vec': '**Vec\\<T\\>** — Dynamic-size array',
+      'Option': '**Option\\<T\\>** — Optional value (Some or None)',
+      'Result': '**Result\\<T, E\\>** — Success or error value',
+      'program': '**program** — Declares a Solana program module',
+      'instruction': '**instruction** — Declares an on-chain instruction handler',
+      'account': '**account** — Declares an on-chain account data structure',
+      'emit': '**emit** — Emit an event log',
+      'assert': '**assert** — Assert a condition (fails transaction if false)',
+      'require': '**require** — Require a condition with custom error',
+      'cpi': '**cpi** — Cross-Program Invocation — call another Solana program',
+      'seeds': '**seeds** — PDA seeds for deriving program addresses',
+      'init': '**#[init]** — Initialize a new account',
+      'mut': '**#[mut]** — Mark account as mutable',
+      'payer': '**payer** — Account that pays for new account creation',
+      'space': '**space** — Byte size allocation for new accounts',
+      'client': '**client** — Client-side SDK logic block',
+      'frontend': '**frontend** — Frontend React component block',
+      'test': '**test** — Test block for assertion-based testing',
     };
 
     if (typeInfo[word]) {
@@ -332,6 +356,44 @@ export class PurpLanguageServer {
           line: node.span.start.line - 1,
           column: node.span.start.column - 1,
         });
+        break;
+      case 'ErrorDeclaration':
+        symbols.push({
+          name: node.name,
+          symbolKind: CompletionItemKind.Enum,
+          detail: `error (${node.variants.length} variants)`,
+          line: node.span.start.line - 1,
+          column: node.span.start.column - 1,
+        });
+        break;
+      case 'TraitDeclaration':
+        symbols.push({
+          name: node.name,
+          symbolKind: CompletionItemKind.Struct,
+          detail: 'trait',
+          line: node.span.start.line - 1,
+          column: node.span.start.column - 1,
+        });
+        break;
+      case 'TypeAlias':
+        symbols.push({
+          name: node.name,
+          symbolKind: CompletionItemKind.Type,
+          detail: 'type alias',
+          line: node.span.start.line - 1,
+          column: node.span.start.column - 1,
+        });
+        break;
+      case 'ImportDeclaration':
+        for (const item of node.items) {
+          symbols.push({
+            name: item.alias ?? item.name,
+            symbolKind: CompletionItemKind.Variable,
+            detail: `imported from ${node.path}`,
+            line: node.span.start.line - 1,
+            column: node.span.start.column - 1,
+          });
+        }
         break;
     }
   }

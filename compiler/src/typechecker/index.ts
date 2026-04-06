@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp Type Checker v0.2.0 — The Solana Coding Language
+// Purp Type Checker v1.0.0 — The Solana Coding Language
 // Full type inference and type checking system
 // ============================================================================
 
@@ -103,6 +103,18 @@ export class TypeChecker {
           this.typeRegistry.set(node.name, this.resolveType(node.type));
           break;
         }
+        case 'FunctionDeclaration': {
+          const paramTypes = node.params.map(p => this.resolveType(p.type));
+          const returnType = node.returnType ? this.resolveType(node.returnType) : { kind: 'void' as const };
+          this.typeRegistry.set(node.name, { kind: 'function', params: paramTypes, returnType });
+          break;
+        }
+        case 'InstructionDeclaration': {
+          // Allow instructions to be referenced for CPI
+          const paramTypes = node.params.map(p => this.resolveType(p.type));
+          this.typeRegistry.set(node.name, { kind: 'function', params: paramTypes, returnType: { kind: 'void' as const } });
+          break;
+        }
       }
     }
   }
@@ -122,6 +134,16 @@ export class TypeChecker {
         this.checkConst(node);
         break;
       case 'TestBlock':
+        this.pushScope();
+        this.checkStatements(node.body);
+        this.popScope();
+        break;
+      case 'ClientBlock':
+        this.pushScope();
+        this.checkStatements(node.body);
+        this.popScope();
+        break;
+      case 'FrontendBlock':
         this.pushScope();
         this.checkStatements(node.body);
         this.popScope();
@@ -286,6 +308,31 @@ export class TypeChecker {
         this.inferExprType(stmt.value);
         this.checkDestructure(stmt.pattern, this.inferExprType(stmt.value));
         break;
+      case 'BreakStatement':
+      case 'ContinueStatement':
+        // No type checking needed
+        break;
+      case 'EmitStatement':
+        for (const arg of stmt.args) this.inferExprType(arg);
+        break;
+      case 'ThrowStatement':
+        this.inferExprType(stmt.value);
+        break;
+      case 'CPICall':
+        for (const acc of stmt.accounts) this.inferExprType(acc);
+        for (const arg of stmt.args) this.inferExprType(arg);
+        if (stmt.seeds) {
+          for (const seed of stmt.seeds) this.inferExprType(seed);
+        }
+        break;
+      case 'SPLOperation':
+        for (const arg of stmt.args) this.inferExprType(arg.value);
+        break;
+      case 'BlockStatement':
+        this.pushScope();
+        this.checkStatements(stmt.body);
+        this.popScope();
+        break;
     }
   }
 
@@ -438,6 +485,33 @@ export class TypeChecker {
   }
 
   private inferCallType(expr: AST.CallExpr): PurpType {
+    // Direct function call (e.g., myFunction(...))
+    if (expr.callee.kind === 'IdentifierExpr') {
+      const fnType = this.resolve(expr.callee.name) ?? this.typeRegistry.get(expr.callee.name);
+      if (fnType && fnType.kind === 'function') return fnType.returnType;
+    }
+    // Method call (e.g., obj.method(...))
+    if (expr.callee.kind === 'MemberExpr') {
+      const objType = this.inferExprType(expr.callee.object);
+      // Array methods
+      if (objType.kind === 'array') {
+        switch (expr.callee.property) {
+          case 'map': case 'filter': return { kind: 'array', element: { kind: 'unknown' } };
+          case 'find': return { kind: 'option', inner: objType.element };
+          case 'len': case 'length': return { kind: 'primitive', name: 'u64' };
+          case 'push': case 'pop': return { kind: 'void' };
+          case 'contains': case 'some': case 'every': return { kind: 'primitive', name: 'bool' };
+        }
+      }
+      // String methods
+      if (objType.kind === 'primitive' && objType.name === 'string') {
+        switch (expr.callee.property) {
+          case 'len': case 'length': return { kind: 'primitive', name: 'u64' };
+          case 'contains': case 'starts_with': case 'ends_with': return { kind: 'primitive', name: 'bool' };
+          case 'to_uppercase': case 'to_lowercase': case 'trim': return { kind: 'primitive', name: 'string' };
+        }
+      }
+    }
     const calleeType = this.inferExprType(expr.callee);
     if (calleeType.kind === 'function') return calleeType.returnType;
     return { kind: 'unknown' };

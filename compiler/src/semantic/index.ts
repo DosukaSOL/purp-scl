@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp Semantic Analyzer v0.2.0 — The Solana Coding Language
+// Purp Semantic Analyzer v1.0.0 — The Solana Coding Language
 // Scope validation, symbol resolution, constraint checking
 // ============================================================================
 

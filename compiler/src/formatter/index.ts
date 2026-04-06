@@ -1,5 +1,5 @@
 // ============================================================================
-// Purp Formatter v0.2.0 — The Solana Coding Language
+// Purp Formatter v1.0.0 — The Solana Coding Language
 // Consistent code formatting for .purp files
 // ============================================================================
 
