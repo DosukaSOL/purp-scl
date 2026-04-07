@@ -221,6 +221,9 @@ export function addItem(player: PlayerState, item: InventoryItem): PlayerState {
  * Remove an item (or quantity) from player inventory.
  */
 export function removeItem(player: PlayerState, itemId: string, quantity: number = 1): PlayerState {
+  const existing = player.inventory.find(i => i.id === itemId);
+  if (!existing) throw new Error(`Item '${itemId}' not found in inventory`);
+  if (existing.quantity < quantity) throw new Error(`Insufficient quantity: have ${existing.quantity}, need ${quantity}`);
   return {
     ...player,
     inventory: player.inventory

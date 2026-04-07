@@ -52,20 +52,20 @@ export async function fetchJSON<T = unknown>(url: string, options: FetchOptions 
     retryDelay = 1000,
   } = options;
 
-  const controller = new AbortController();
-  const timer = timeout > 0 ? setTimeout(() => controller.abort(), timeout) : null;
-
-  const fetchOpts: RequestInit = {
-    method,
-    headers: { 'Content-Type': 'application/json', ...headers },
-    signal: controller.signal,
-  };
-  if (body && method !== 'GET') {
-    fetchOpts.body = JSON.stringify(body);
-  }
-
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = timeout > 0 ? setTimeout(() => controller.abort(), timeout) : null;
+
+    const fetchOpts: RequestInit = {
+      method,
+      headers: { 'Content-Type': 'application/json', ...headers },
+      signal: controller.signal,
+    };
+    if (body && method !== 'GET') {
+      fetchOpts.body = JSON.stringify(body);
+    }
+
     try {
       const start = Date.now();
       const response = await fetch(url, fetchOpts);
@@ -80,13 +80,13 @@ export async function fetchJSON<T = unknown>(url: string, options: FetchOptions 
         elapsed: Date.now() - start,
       };
     } catch (err) {
+      if (timer) clearTimeout(timer);
       lastError = err as Error;
       if (attempt < retries) {
         await new Promise(r => setTimeout(r, retryDelay * (attempt + 1)));
       }
     }
   }
-  if (timer) clearTimeout(timer);
   throw lastError ?? new Error('Fetch failed');
 }
 

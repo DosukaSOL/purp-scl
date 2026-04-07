@@ -89,11 +89,11 @@ export interface Token2022MintConfig {
  * Calculate the required account size for a Token-2022 mint with extensions.
  */
 export function calculateMintSize(extensions: TokenExtension[]): number {
-  let size = 82; // Base mint size
-  size += 1;     // Account type discriminator
+  let size = 165; // Base mint data padded to MultisigAccount length (Token-2022)
+  size += 1;      // Account type discriminator byte
 
   for (const ext of extensions) {
-    size += 2; // Extension type discriminator
+    size += 4; // TLV header: 2 bytes type + 2 bytes length
     switch (ext.kind) {
       case 'TransferFee': size += 108; break;
       case 'TransferHook': size += 64; break;
@@ -119,9 +119,11 @@ export function calculateMintSize(extensions: TokenExtension[]): number {
 /**
  * Calculate the required rent for a Token-2022 mint.
  */
-export function calculateMintRent(extensions: TokenExtension[], lamportsPerByte: bigint = 6960n): bigint {
+export function calculateMintRent(extensions: TokenExtension[]): bigint {
   const size = BigInt(calculateMintSize(extensions));
-  return size * lamportsPerByte + 2_039_280n; // Base rent-exempt minimum
+  // Solana rent-exempt formula: (data_size + 128) * lamports_per_byte_year * 2_years
+  // lamports_per_byte_year = 3480
+  return (size + 128n) * 3480n * 2n;
 }
 
 // ============================================================================

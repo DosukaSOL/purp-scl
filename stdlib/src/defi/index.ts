@@ -183,7 +183,7 @@ export function getSpotPrice(pool: PoolState): number {
 /**
  * Estimate impermanent loss for a given price change.
  * priceRatio = newPrice / initialPrice
- * Returns loss as a decimal (e.g., 0.05 = 5% loss)
+ * Returns a negative decimal representing loss (e.g., -0.05 = 5% loss)
  */
 export function estimateImpermanentLoss(priceRatio: number): number {
   const sqrtR = Math.sqrt(priceRatio);
@@ -363,7 +363,7 @@ export function stakingAPR(
   pool: StakingPool,
   rewardPrice: bigint,
   stakePrice: bigint,
-  slotsPerYear: bigint = 157_680_000n, // ~2 slots/sec * 365 days
+  slotsPerYear: bigint = 63_072_000n, // ~2 slots/sec (400ms slots) * 365.25 days
 ): number {
   if (pool.totalStaked === 0n) return 0;
   const annualRewards = Number(checkedMul(pool.rewardRate, slotsPerYear));

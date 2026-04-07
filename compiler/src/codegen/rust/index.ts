@@ -216,9 +216,9 @@ export class RustCodegen {
     const ctxName = `${this.toPascalCase(node.name)}Context`;
     const params = node.params.map(p => `${this.toSnakeCase(p.name)}: ${this.emitTypeStr(p.type)}`);
     const paramStr = params.length > 0 ? `, ${params.join(', ')}` : '';
-    const retType = node.returns ? ` -> ${this.emitTypeStr(node.returns)}` : '';
+    const innerType = node.returns ? this.emitTypeStr(node.returns) : '()';
 
-    this.emit(`pub fn ${this.toSnakeCase(node.name)}(ctx: Context<${ctxName}>${paramStr}) -> Result<()${retType ? retType.slice(4) : ''}> {`);
+    this.emit(`pub fn ${this.toSnakeCase(node.name)}(ctx: Context<${ctxName}>${paramStr}) -> Result<${innerType}> {`);
     this.indent++;
 
     this.emitStatements(node.body, node.accounts);
@@ -299,7 +299,7 @@ export class RustCodegen {
     }
 
     // Auto-add mut for mutable account types
-    if (!constraints.includes('mut') && acc.accountType.kind !== 'Program' && acc.accountType.kind !== 'Signer') {
+    if (!constraints.includes('mut') && acc.accountType.kind !== 'Program') {
       if ('mutable' in acc.accountType && acc.accountType.mutable) {
         constraints.unshift('mut');
       }
@@ -311,7 +311,7 @@ export class RustCodegen {
   private accountTypeToRust(acc: AST.AccountParam): string {
     switch (acc.accountType.kind) {
       case 'Signer':
-        return acc.accountType.mutable ? "Signer<'info>" : "Signer<'info>";
+        return "Signer<'info>";
       case 'Account':
         return `Account<'info, ${acc.accountType.type}>`;
       case 'TokenAccount':
@@ -497,7 +497,7 @@ export class RustCodegen {
     this.emit('');
     const asyncStr = node.isAsync ? 'async ' : '';
     const testName = this.toSnakeCase(node.name.replace(/[^a-zA-Z0-9_]/g, '_'));
-    this.emit('#[test]');
+    this.emit(node.isAsync ? '#[tokio::test]' : '#[test]');
     this.emit(`${asyncStr}fn ${testName}() {`);
     this.indent++;
     this.emitStatements(node.body);
@@ -1236,7 +1236,7 @@ export class RustCodegen {
   }
 
   private toSnakeCase(name: string): string {
-    return name.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '').replace(/__/g, '_');
+    return name.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '').replace(/_+/g, '_');
   }
 
   private toPascalCase(name: string): string {

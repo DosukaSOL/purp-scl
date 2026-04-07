@@ -267,30 +267,30 @@ export function formatProposalState(state: ProposalState): string {
  */
 export const DAO_PRESETS = {
   standard: {
-    votingPeriod: 216_000n,     // ~3 days at 2 slots/sec
-    cooldownPeriod: 43_200n,    // ~12 hours
+    votingPeriod: 518_400n,     // ~3 days at 2 slots/sec
+    cooldownPeriod: 86_400n,    // ~12 hours at 2 slots/sec
     quorumBps: 1000,            // 10%
     approvalThresholdBps: 5000, // 50%
     minTokensToPropose: 1_000n,
     voteType: 'single-choice' as VoteType,
-    maxVotingTime: 604_800n,    // 7 days
+    maxVotingTime: 1_209_600n,  // ~7 days at 2 slots/sec
   },
   multisig: {
-    votingPeriod: 86_400n,
+    votingPeriod: 172_800n,     // ~1 day at 2 slots/sec
     cooldownPeriod: 0n,
     quorumBps: 10000,
     approvalThresholdBps: 6000,
     minTokensToPropose: 1n,
     voteType: 'single-choice' as VoteType,
-    maxVotingTime: 259_200n,
+    maxVotingTime: 518_400n,    // ~3 days at 2 slots/sec
   },
   quadratic: {
-    votingPeriod: 432_000n,
-    cooldownPeriod: 86_400n,
+    votingPeriod: 864_000n,     // ~5 days at 2 slots/sec
+    cooldownPeriod: 172_800n,   // ~1 day at 2 slots/sec
     quorumBps: 500,
     approvalThresholdBps: 5000,
     minTokensToPropose: 100n,
     voteType: 'quadratic' as VoteType,
-    maxVotingTime: 864_000n,
+    maxVotingTime: 1_728_000n,  // ~10 days at 2 slots/sec
   },
 } as const;

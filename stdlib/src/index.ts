@@ -41,8 +41,13 @@ export { utilizationRate, borrowRate, supplyRate, isLiquidatable, maxBorrowable,
 export { rewardPerToken, pendingRewards, stakingAPR } from './defi/index.js';
 export { parsePythPrice, oraclePriceToNumber, validateOracleFreshness, validateOracleConfidence, calculateTWAP } from './defi/index.js';
 
-// Token-2022 Extensions
-export * from './token-extensions/index.js';
+// Token-2022 Extensions (selective to avoid TOKEN_2022_PROGRAM_ID collision with cpi module)
+export { type TokenExtension, type TransferFeeExtension, type TransferHookExtension, type NonTransferableExtension } from './token-extensions/index.js';
+export { type InterestBearingExtension, type PermanentDelegateExtension, type ConfidentialTransferExtension } from './token-extensions/index.js';
+export { type MetadataExtension, type MemoRequiredExtension, type CpiGuardExtension, type DefaultAccountStateExtension } from './token-extensions/index.js';
+export { type Token2022MintConfig } from './token-extensions/index.js';
+export { calculateMintSize, calculateMintRent, calculateTransferFee, amountAfterFee, grossAmountForNetReceive } from './token-extensions/index.js';
+export { calculateAccruedInterest, interestBearingBalance, generateMintInstructions, hasExtension, getExtension } from './token-extensions/index.js';
 
 // Governance/DAO
 export { type GovernanceConfig, type Proposal, type Vote, type TreasuryConfig } from './governance/index.js';

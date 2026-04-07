@@ -49,8 +49,19 @@ export class BorshWriter {
     for (const byte of value) this.writeU8(byte);
   }
   writePubkey(value: string): void {
-    // Placeholder: In real impl, decode base58 to 32 bytes
-    const bytes = new TextEncoder().encode(value.padEnd(32, '\0').slice(0, 32));
+    // Decode base58 Solana public key to 32 raw bytes
+    const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let num = 0n;
+    for (const char of value) {
+      const idx = ALPHABET.indexOf(char);
+      if (idx === -1) throw new Error(`Invalid base58 character: ${char}`);
+      num = num * 58n + BigInt(idx);
+    }
+    const bytes = new Uint8Array(32);
+    for (let i = 31; i >= 0; i--) {
+      bytes[i] = Number(num & 0xffn);
+      num >>= 8n;
+    }
     for (const byte of bytes) this.writeU8(byte);
   }
 
@@ -176,4 +187,48 @@ export class BorshReader {
     if (variantIndex >= readers.length) throw new Error(`Unknown enum variant: ${variantIndex}`);
     return readers[variantIndex](this);
   }
+}
+
+// ============================================================================
+// Base58 Utilities
+// ============================================================================
+
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+/**
+ * Encode 32 raw bytes into a base58 Solana public key string.
+ */
+export function pubkeyToBase58(bytes: Uint8Array): string {
+  let num = 0n;
+  for (const byte of bytes) num = (num << 8n) | BigInt(byte);
+  if (num === 0n) return BASE58_ALPHABET[0];
+  let result = '';
+  while (num > 0n) {
+    result = BASE58_ALPHABET[Number(num % 58n)] + result;
+    num /= 58n;
+  }
+  // Preserve leading zeros
+  for (const byte of bytes) {
+    if (byte !== 0) break;
+    result = BASE58_ALPHABET[0] + result;
+  }
+  return result;
+}
+
+/**
+ * Decode a base58 Solana public key string into 32 raw bytes.
+ */
+export function base58ToBytes(value: string): Uint8Array {
+  let num = 0n;
+  for (const char of value) {
+    const idx = BASE58_ALPHABET.indexOf(char);
+    if (idx === -1) throw new Error(`Invalid base58 character: ${char}`);
+    num = num * 58n + BigInt(idx);
+  }
+  const bytes = new Uint8Array(32);
+  for (let i = 31; i >= 0; i--) {
+    bytes[i] = Number(num & 0xffn);
+    num >>= 8n;
+  }
+  return bytes;
 }
