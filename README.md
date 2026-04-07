@@ -1,87 +1,76 @@
 <p align="center">
-  <img src="./logo.png" alt="Purp Logo" width="200" />
+  <img src="./logo.png" alt="Purp Logo" width="180" />
 </p>
 
-<h1 align="center">Purp — Solana Coding Language (SCL)</h1>
+<h1 align="center">Purp</h1>
+<h3 align="center">The Solana Coding Language</h3>
 
 <p align="center">
-  <strong>Write Solana programs in a language that feels like home.</strong><br/>
-  Purp compiles to Anchor-compatible Rust + TypeScript SDK. One language for on-chain, client, and frontend.
+  Write Solana programs in a language that feels like home.<br/>
+  One <code>.purp</code> file → Anchor Rust + TypeScript SDK + Frontend — ready to deploy.
+</p>
+
+<br/>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.2.1-7C3AED?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/tests-166%20passing-22C55E?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
 </p>
 
 <p align="center">
-  <a href="#quickstart">Quickstart</a> •
-  <a href="#features">Features</a> •
-  <a href="#language-overview">Language</a> •
-  <a href="#cli">CLI</a> •
-  <a href="#templates">Templates</a> •
-  <a href="#examples">Examples</a> •
-  <a href="#roadmap">Roadmap</a> •
-  <a href="#contributing">Contributing</a>
+  <a href="#quickstart">Quickstart</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#language-overview">Language</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#templates">Templates</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#roadmap">Roadmap</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#contributing">Contributing</a>
+</p>
+
+<br/>
+
+<p align="center">
+  <a href="https://solana.com">
+    <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" alt="Built for Solana" width="28" style="vertical-align: middle;" />
+  </a>
+  &nbsp;&nbsp;
+  <strong>Built for <a href="https://solana.com">Solana</a></strong>
 </p>
 
 ---
 
 ## What is Purp?
 
-**Purp** is a high-level programming language purpose-built for the Solana blockchain. It compiles (transpiles) `.purp` source files into:
+**Purp** is a high-level programming language purpose-built for [Solana](https://solana.com). It compiles `.purp` source files into:
 
-- **Anchor-compatible Rust** — ready to deploy as Solana programs
-- **TypeScript SDK** — auto-generated client code for interacting with your program
+- **[Anchor](https://www.anchor-lang.com)-compatible Rust** — ready to deploy as Solana programs
+- **TypeScript SDK** — auto-generated client code using [`@solana/web3.js`](https://solana.com/docs/clients/javascript)
+- **Frontend UI** — optional component output for dApp interfaces
 
-Purp eliminates the boilerplate of writing Solana programs by hand. Instead of juggling Rust, TypeScript, and IDL files separately, you write one `.purp` file that covers **on-chain logic**, **client SDK**, and even **frontend UI**.
+Instead of juggling Rust, TypeScript, and IDL files separately, you write one `.purp` file that covers **on-chain logic**, **client SDK**, and **frontend UI**.
 
 ### Why Purp?
 
 | Pain Point | Purp Solution |
 |---|---|
 | Rust is hard for beginners | Purp uses familiar, readable syntax |
-| Anchor boilerplate is verbose | Purp auto-generates derive macros, account structs, IDL |
+| Anchor boilerplate is verbose | Auto-generates derive macros, account structs, IDL |
 | Client code is separate from program | `client {}` block in the same file |
 | Frontend needs a separate project | `frontend {}` block with built-in components |
-| No standard way to handle tokens/NFTs | `@purp/stdlib` provides Token, NFT, PDA, CPI helpers |
-| AI agents need on-chain programs | Purp powers [PAW Agents](https://github.com/DosukaSOL/paw-agents) for autonomous AI on Solana |
+| No standard way to handle tokens/NFTs | `@purp/stdlib` — Token, NFT, PDA, CPI helpers |
+| AI agents need on-chain programs | Powers [PAW Agents](https://github.com/DosukaSOL/paw-agents) for autonomous AI on Solana |
 
 ## Quickstart
 
-### Prerequisites
-
-- **Node.js** 18+
-- **npm** or **yarn**
-- **Rust** & **Cargo** (for deploying compiled output)
-- **Solana CLI** & **Anchor** (for deployment)
-
-### Install
+> **Prerequisites:** [Node.js](https://nodejs.org) 18+, [Rust & Cargo](https://rustup.rs), [Solana CLI](https://solana.com/docs/intro/installation), [Anchor](https://www.anchor-lang.com/docs/installation)
 
 ```bash
-# Clone the repo
-git clone https://github.com/user/purp-scl.git
-cd purp-scl
-
-# Install dependencies
-npm install
-
-# Build the compiler & CLI
-npm run build
-
-# Link the CLI globally
-npm link
+git clone https://github.com/DosukaSOL/purp-scl.git && cd purp-scl
+npm install && npm run build && npm link
 ```
 
-### Create a New Project
+Create a project and start coding:
 
 ```bash
-# Initialize a new Purp project
-purp init my-project
-cd my-project
-
-# Or use a template
-purp init my-token --template memecoin-launcher
+purp init my-project && cd my-project
 ```
 
-### Write Your First Program
-
-Create `src/main.purp`:
+Write your first program in `src/main.purp`:
 
 ```
 program HelloSolana {
@@ -105,79 +94,81 @@ program HelloSolana {
 }
 ```
 
-### Build & Deploy
+Build and deploy:
 
 ```bash
-# Check for errors
-purp check
-
-# Build to Rust + TypeScript
-purp build
-
-# Deploy (requires Solana CLI + Anchor)
+purp check          # Type-check
+purp build          # Compile → Anchor Rust + TypeScript SDK
 purp deploy --network devnet
 ```
 
 ## Features
 
-### 🔮 Solana-Native Language
-- `program`, `instruction`, `account`, `signer`, `PDA`, `token`, `mint`, `NFT` — all first-class keywords
-- Events, errors, and CPI built into the syntax
+### Solana-Native Language
+`program`, `instruction`, `account`, `signer`, `PDA`, `token`, `mint`, `NFT` — all first-class keywords. Events, errors, and [CPI](https://solana.com/docs/core/cpi) are built into the syntax.
 
-### ⚡ Hybrid Compiler
-- Lexer → Parser → AST → Semantic Analysis → Code Generation
-- Outputs Anchor-compatible Rust with proper `#[program]`, `#[derive(Accounts)]`, events, errors
-- Auto-generates TypeScript client SDK
+### Hybrid Compiler
+Lexer → Parser → AST → Semantic Analysis → Code Generation. Outputs [Anchor](https://www.anchor-lang.com)-compatible Rust with proper `#[program]`, `#[derive(Accounts)]`, events, and errors. Auto-generates a TypeScript client SDK.
 
-### 🛠 Powerful CLI
-- `purp init` / `purp new` — scaffold projects from templates
-- `purp build` — compile `.purp` to Rust + TypeScript
-- `purp check` — type-check without building
-- `purp deploy` — deploy to Solana network (via Anchor)
-- `purp install` — install Purp packages
-- `purp publish` — publish a Purp package
-- `purp generate` — scaffold instructions, accounts, events, tokens, NFTs
-- `purp doctor` — check system dependencies
-- `purp dev` — watch mode with live recompilation
-- `purp audit` — security scanning
-- `purp test` — run tests
-- `purp lint` — lint Purp source files
-- `purp format` — format Purp source files
-- `purp clean` — remove build artifacts
+### CLI — 14 Commands
 
-### 📦 Standard Library (`@purp/stdlib`)
+| Command | Description |
+|---|---|
+| `purp init` / `purp new` | Scaffold from 11 templates |
+| `purp build` | Compile `.purp` → Rust + TypeScript |
+| `purp check` | Type-check without building |
+| `purp deploy` | Deploy to [Solana](https://solana.com/docs/intro/installation) via Anchor |
+| `purp test` | Run tests (AST → JS execution) |
+| `purp dev` | Watch mode with live recompilation |
+| `purp lint` | Lint with 13 Solana-specific rules |
+| `purp format` | Auto-format `.purp` source |
+| `purp install` / `purp publish` | Package manager |
+| `purp generate` | Scaffold accounts, instructions, tokens, NFTs |
+| `purp audit` | Security scanning |
+| `purp doctor` | Check system dependencies |
+| `purp clean` | Remove build artifacts |
+
+### Standard Library — `@purp/stdlib`
+
 | Module | Description |
 |---|---|
 | `accounts` | Account creation, validation, closing |
-| `tokens` | SPL Token: create, mint, transfer, burn |
-| `nfts` | Metaplex NFT: mint, update, verify |
-| `pdas` | PDA derivation and validation |
-| `cpi` | Cross-Program Invocation helpers |
+| `tokens` | [SPL Token](https://spl.solana.com/token) — create, mint, transfer, burn |
+| `nfts` | [Metaplex](https://developers.metaplex.com) NFT — mint, update, verify |
+| `pdas` | [PDA](https://solana.com/docs/core/pda) derivation and validation |
+| `cpi` | [Cross-Program Invocation](https://solana.com/docs/core/cpi) helpers |
 | `events` | Event emission and logging |
-| `math` | Safe math (checked add, sub, mul, div, pow, sqrt) |
-| `serialization` | Borsh-compatible serialize/deserialize |
+| `math` | Safe math with Solana constants (fees, CU limits, rent) |
+| `serialization` | Borsh-compatible serialize / deserialize |
 | `wallet` | Wallet connection and signing |
 | `frontend` | UI components for Solana dApps |
-| `game` | Game state, player, leaderboard helpers |
+| `defi` | DeFi primitives — AMM, staking, lending, IL calculation |
+| `governance` | DAO proposals, voting, treasury, multisig |
+| `game` | Game state, inventory, leaderboard helpers |
 | `web` | HTTP client, JSON, WebSocket utilities |
-| `ai` | AI model registry and inference helpers |
+| `token-extensions` | [Token-2022](https://solana.com/docs/core/tokens#token-extensions-program) extension size & rent calculation |
 
-### 🏗 Runtime
-- `TransactionBuilder` — fluent API for building Solana transactions
+### Runtime
+- `TransactionBuilder` — fluent API for building [Solana transactions](https://solana.com/docs/core/transactions)
 - `AccountSerializer` / `AccountDeserializer` — Borsh-compatible serialization
-- `PDAHelper` — deterministic PDA derivation
+- `PDAHelper` — deterministic [PDA derivation](https://solana.com/docs/core/pda)
 - `SimulationEngine` — local transaction simulation
 
 ## Language Overview
 
-### Program Declaration
+<details>
+<summary><strong>Program Declaration</strong></summary>
+
 ```
 program MyProgram {
   // accounts, instructions, events, errors
 }
 ```
+</details>
 
-### Accounts
+<details>
+<summary><strong>Accounts</strong></summary>
+
 ```
 account UserProfile {
   owner: pubkey,
@@ -186,8 +177,11 @@ account UserProfile {
   is_active: bool
 }
 ```
+</details>
 
-### Instructions
+<details>
+<summary><strong>Instructions</strong></summary>
+
 ```
 pub instruction transfer(
   #[mut] signer from,
@@ -201,8 +195,11 @@ pub instruction transfer(
   emit Transferred(from, amount);
 }
 ```
+</details>
 
-### Events & Errors
+<details>
+<summary><strong>Events & Errors</strong></summary>
+
 ```
 event Transferred { from: pubkey, amount: u64 }
 
@@ -211,8 +208,11 @@ error Errors {
   Unauthorized = "You are not authorized"
 }
 ```
+</details>
 
-### Client Block
+<details>
+<summary><strong>Client Block</strong></summary>
+
 ```
 client {
   async fn getProfile(program, wallet: pubkey): UserProfile {
@@ -220,8 +220,11 @@ client {
   }
 }
 ```
+</details>
 
-### Frontend Block
+<details>
+<summary><strong>Frontend Block</strong></summary>
+
 ```
 frontend {
   page "/" {
@@ -239,143 +242,111 @@ frontend {
   }
 }
 ```
+</details>
 
-### Types
+<details>
+<summary><strong>Type System</strong></summary>
+
 | Purp Type | Rust Equivalent | TypeScript Equivalent |
 |---|---|---|
-| `u8`, `u16`, `u32`, `u64`, `u128` | `u8`, `u16`, `u32`, `u64`, `u128` | `number`, `BN` |
-| `i8`, `i16`, `i32`, `i64`, `i128` | `i8`, `i16`, `i32`, `i64`, `i128` | `number`, `BN` |
+| `u8` … `u128` | `u8` … `u128` | `number` / `BN` |
+| `i8` … `i128` | `i8` … `i128` | `number` / `BN` |
 | `f32`, `f64` | `f32`, `f64` | `number` |
 | `bool` | `bool` | `boolean` |
 | `string` | `String` | `string` |
 | `pubkey` | `Pubkey` | `PublicKey` |
 | `bytes` | `Vec<u8>` | `Buffer` |
+</details>
 
 ## Templates
 
+Get started instantly with `purp init my-project --template <name>`:
+
 | Template | Description |
 |---|---|
-| `hello-world` | Minimal Purp program with one instruction |
-| `memecoin-launcher` | Full SPL token launch with liquidity pool |
-| `nft-mint` | NFT collection with minting and metadata |
+| `hello-world` | Minimal program with one instruction |
+| `memecoin-launcher` | SPL token launch with liquidity pool |
+| `nft-mint` | NFT collection with minting & metadata |
 | `cnft-mint` | Compressed NFT minting with Merkle tree |
 | `staking-rewards` | Staking pool with reward distribution |
 | `game-contract` | On-chain game with players, rounds, prizes |
-| `fullstack-dapp` | Complete dApp with program + client + frontend |
+| `fullstack-dapp` | Complete dApp — program + client + frontend |
 | `website-wallet` | Website with wallet integration |
 | `analytics-dashboard` | On-chain analytics with dashboard UI |
-| `bot` | Trading/utility bot with config and trade logging |
+| `bot` | Trading / utility bot with config |
 | `ai-solana-app` | AI model registry with on-chain inference |
-
-```bash
-purp init my-project --template memecoin-launcher
-```
 
 ## Examples
 
-The `examples/` directory contains standalone `.purp` files demonstrating specific features:
+The `examples/` directory contains standalone `.purp` files:
 
-- **token-creation** — Creating and managing SPL tokens
-- **nft-mint** — Minting NFTs with collections
-- **pda-usage** — Program Derived Addresses
-- **frontend-interaction** — Connecting frontend to on-chain program
-- **wallet-flow** — Wallet connect, sign, send
-- **simple-game** — Rock-Paper-Scissors on-chain
-- **rewards-system** — Staking and reward distribution
+| Example | What it demonstrates |
+|---|---|
+| `token-creation` | Creating and managing [SPL tokens](https://spl.solana.com/token) |
+| `nft-mint` | Minting NFTs with collections |
+| `pda-usage` | [Program Derived Addresses](https://solana.com/docs/core/pda) |
+| `frontend-interaction` | Connecting frontend to on-chain program |
+| `wallet-flow` | Wallet connect, sign, send |
+| `simple-game` | Rock-Paper-Scissors on-chain |
+| `rewards-system` | Staking and reward distribution |
 
 ## Project Structure
 
+<details>
+<summary>Click to expand</summary>
+
 ```
 purp-scl/
-├── compiler/           # Purp compiler (lexer, parser, AST, codegen)
+├── compiler/           # Lexer, Parser, AST, Semantic, TypeChecker, Codegen
 │   └── src/
-│       ├── lexer/      # Tokenizer
-│       ├── parser/     # Recursive descent parser
-│       ├── ast/        # Abstract Syntax Tree definitions
-│       ├── semantic/   # Semantic analysis & type checking
-│       ├── codegen/    # Code generation
-│       │   ├── rust/   # → Anchor-compatible Rust
-│       │   └── typescript/ # → TypeScript SDK
-│       ├── typechecker/ # Full type checker with inference
-│       ├── formatter/  # Code formatter (purp fmt)
-│       ├── linter/     # Linter with configurable rules
-│       ├── sourcemap/  # Source map generation for debugging
-│       ├── plugins/    # Plugin system for custom codegen & lint rules
-│       └── errors/     # Error types & diagnostics
-├── cli/                # Command-line interface
-│   └── src/
-│       ├── commands/   # 18 CLI commands (init, build, deploy, install, ...)
-│       └── utils/      # CLI utilities
-├── lsp/                # Language Server Protocol implementation
-│   └── src/
-│       └── server.ts   # LSP server (diagnostics, completion, hover, go-to-def)
-├── editor/             # Editor integrations
-│   └── vscode/         # VS Code extension
-│       └── syntaxes/   # TextMate grammar for .purp syntax highlighting
-├── runtime/            # Runtime helpers (transaction builder, PDA, simulation)
-├── stdlib/             # Standard library (13 modules)
-├── templates/          # Project templates (11 templates)
-├── examples/           # Example .purp files (7 examples)
-├── docs/               # Documentation
-├── spec/               # Language specification & grammar
-├── tests/              # Test suite (136 tests across 9 suites)
-├── website/            # Documentation website
-├── scripts/            # Build & utility scripts
-└── .github/            # CI/CD workflows & templates
+│       ├── lexer/
+│       ├── parser/
+│       ├── ast/
+│       ├── semantic/
+│       ├── typechecker/
+│       ├── codegen/    # → Anchor Rust, TypeScript, IDL, Frontend
+│       ├── formatter/
+│       ├── linter/
+│       ├── sourcemap/
+│       ├── plugins/
+│       └── errors/
+├── cli/                # 14 CLI commands
+├── lsp/                # Language Server Protocol (diagnostics, completion, hover)
+├── editor/             # VS Code extension + TextMate grammar
+├── runtime/            # TransactionBuilder, PDA, Simulation
+├── stdlib/             # Standard library (15 modules)
+├── templates/          # 11 project templates
+├── examples/           # 7 example programs
+├── tests/              # 166 tests across 9 suites
+├── docs/
+├── spec/
+└── website/
 ```
+</details>
 
 ## Roadmap
 
 See [ROADMAP.md](./ROADMAP.md) for the full roadmap.
 
-### v0.1.0 ✅
-- [x] Core compiler (lexer, parser, AST, codegen)
-- [x] Rust code generation (Anchor-compatible)
-- [x] TypeScript SDK generation
-- [x] CLI with 15+ commands
-- [x] Standard library (13 modules)
-- [x] Runtime layer
-- [x] 11 project templates
-- [x] 7 examples
-- [x] Documentation
-
-### v0.2.0 ✅
-- [x] LSP (Language Server Protocol) — diagnostics, completion, hover, go-to-def
-- [x] VS Code extension with TextMate syntax highlighting
-- [x] Full type checker with inference
-- [x] Source map generation
-- [x] Code formatter (`purp format`)
-- [x] Linter with configurable rules (`purp lint`)
-- [x] Improved error messages with suggestions
-
-### v0.3.0 ✅
-- [x] Package manager (`purp install` / `purp publish`) with Purp.toml + Purp.lock
-- [x] Plugin system (custom codegen, lint rules, build hooks)
-- [x] Real deployment pipeline (`purp deploy` → Anchor build + deploy)
-- [x] Dev watch mode with file system watching (`purp dev`)
-- [x] Real test runner with AST-based test extraction (`purp test`)
-- [x] Local transaction simulation engine
-- [x] Full stdlib: tokens (SPL instructions), NFTs (Metaplex/cNFTs), PDAs (SHA-256 derivation), CPI builder, wallet adapters, frontend components, web/HTTP client, AI agent tools
-
-### v1.0.0 ✅ (Current)
-- [x] TypeChecker hardened — covers all statement/expression types with full type inference
-- [x] Linter expanded to 13 rules — Solana-specific best practices, full AST walker
-- [x] LSP expanded — 35+ hover entries, all symbol types
-- [x] Source map generator — real Base64 VLQ encoding
-- [x] `purp test` — real execution via AST-to-JS compilation
-- [x] `purp run` — compiles and executes via Node.js
-- [x] `purp docs` / `purp example` — full CLI reference and real code examples
-- [x] 136 tests across 9 suites (lexer, parser, compiler, codegen, formatter, linter, typechecker, semantic, sourcemap)
+| Version | Highlights | Status |
+|---|---|---|
+| **v0.1.0** | Core compiler, Rust codegen, CLI, stdlib, 11 templates | ✅ |
+| **v0.2.0** | LSP, VS Code extension, type checker, formatter, linter, source maps | ✅ |
+| **v0.3.0** | Package manager, plugin system, deploy pipeline, dev watch, simulation | ✅ |
+| **v1.0.0** | Hardened type checker, expanded linter (13 rules), `purp test` + `purp run`, 136 tests | ✅ |
+| **v1.2.0** | DeFi, DAO, Token-2022, game & serialization modules, 3 new templates, 166 tests | ✅ |
+| **v1.2.1** | Audit-driven fixes — 15 bugs resolved from official Solana doc review | ✅ Current |
 
 ## Contributing
 
 We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing`)
-3. Write your code and tests
-4. Run `purp check` and `npm test`
-5. Submit a Pull Request
+```bash
+git checkout -b feature/amazing
+# Write code + tests
+purp check && npm test
+# Submit a PR
+```
 
 ## License
 
@@ -383,10 +354,20 @@ MIT — see [LICENSE](./LICENSE) for details.
 
 ## See Also
 
-- **[PAW Agents](https://github.com/DosukaSOL/paw-agents)** — The operating system for autonomous AI workers. Purp can be used to write the on-chain Solana programs that PAW Agents interact with, enabling safe and traceable AI execution on-chain.
+- **[PAW Agents](https://github.com/DosukaSOL/paw-agents)** — The operating system for autonomous AI workers. Purp writes the on-chain programs that PAW Agents interact with.
 
 ---
 
 <p align="center">
-  <strong>Purp SCL v1.0.0</strong> — Built for the Solana ecosystem 💜
+  <br/>
+  <a href="https://solana.com">
+    <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" alt="Solana" width="20" style="vertical-align: middle;" />
+  </a>
+  &nbsp;
+  <strong>Solana Resources</strong>
+  <br/><br/>
+  <a href="https://solana.com">Solana</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://solana.com/docs">Solana Docs</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://www.anchor-lang.com">Anchor</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://spl.solana.com">SPL</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://explorer.solana.com">Explorer</a>
+  <br/><br/>
+  <strong>Purp SCL v1.2.1</strong>&nbsp;&nbsp;—&nbsp;&nbsp;Built for the Solana ecosystem
+  <br/><br/>
 </p>
