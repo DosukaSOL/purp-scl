@@ -449,7 +449,7 @@ export interface CPICall extends BaseNode {
 
 export interface SPLOperation extends BaseNode {
   kind: 'SPLOperation';
-  operation: 'transfer' | 'mint_to' | 'burn' | 'close_account' | 'create_associated_token_account' | 'approve' | 'revoke';
+  operation: 'transfer' | 'mint_to' | 'burn' | 'close_account' | 'create_associated_token_account' | 'approve' | 'revoke' | 'freeze_account' | 'thaw_account' | 'set_authority' | 'sync_native';
   args: { name: string; value: Expression }[];
 }
 

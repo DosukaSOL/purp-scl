@@ -31,3 +31,28 @@ export * from './frontend/index.js';
 export * from './game/index.js';
 export * from './web/index.js';
 export * from './ai/index.js';
+
+// DeFi: selective exports to avoid collisions
+export { type PoolState, type SwapResult, type AddLiquidityResult, type RemoveLiquidityResult } from './defi/index.js';
+export { type LendingPool, type InterestRateModel, type BorrowPosition } from './defi/index.js';
+export { type StakingPool, type StakePosition, type OraclePrice } from './defi/index.js';
+export { createPool, calculateSwap, calculateSwapWithSlippage, addLiquidity, removeLiquidity, getSpotPrice, estimateImpermanentLoss } from './defi/index.js';
+export { utilizationRate, borrowRate, supplyRate, isLiquidatable, maxBorrowable, healthFactor } from './defi/index.js';
+export { rewardPerToken, pendingRewards, stakingAPR } from './defi/index.js';
+export { parsePythPrice, oraclePriceToNumber, validateOracleFreshness, validateOracleConfidence, calculateTWAP } from './defi/index.js';
+
+// Token-2022 Extensions
+export * from './token-extensions/index.js';
+
+// Governance/DAO
+export { type GovernanceConfig, type Proposal, type Vote, type TreasuryConfig } from './governance/index.js';
+export { tokenWeightedVote, quadraticVoteWeight, convictionVoteWeight, calculateVoteWeight } from './governance/index.js';
+export { createProposal, isVotingOpen, totalVotes, hasQuorum, hasPassed, resolveProposal } from './governance/index.js';
+export { validateTreasurySpend, isThresholdMet, formatProposalState, DAO_PRESETS } from './governance/index.js';
+
+// Social
+export { type Profile, type Post, type Follow, type Reaction as SocialReaction, type TipRecord, type ReputationScore } from './social/index.js';
+export { profileSeeds, postSeeds, followSeeds, reactionSeeds } from './social/index.js';
+export { arweaveUri, ipfsUri, shadowDriveUri, detectStorageType, validateUsername } from './social/index.js';
+export { calculateReputation, reputationLevel, sortByEngagement, sortChronological, filterByTags, buildThread } from './social/index.js';
+export { validateTip, tipPlatformFee, netTipAmount } from './social/index.js';

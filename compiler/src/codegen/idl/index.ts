@@ -189,12 +189,47 @@ export class IDLCodegen {
     }
   }
 
-  private extractPDA(acc: AST.AccountParam): { seeds: { kind: string; value?: string }[] } | undefined {
+  private extractPDA(acc: AST.AccountParam): { seeds: { kind: string; type?: string; value?: string; path?: string }[] } | undefined {
+    // Check for PDA account type with explicit seeds
+    if (acc.accountType.kind === 'PDA' && acc.accountType.seeds.length > 0) {
+      const seeds = acc.accountType.seeds.map(seed => {
+        switch (seed.kind) {
+          case 'StringLiteral':
+            return { kind: 'const', type: 'string', value: (seed as AST.StringLiteral).value };
+          case 'NumberLiteral':
+            return { kind: 'const', type: 'u64', value: (seed as AST.NumberLiteral).raw };
+          case 'IdentifierExpr':
+            return { kind: 'account', path: (seed as AST.IdentifierExpr).name };
+          case 'MemberExpr': {
+            const member = seed as AST.MemberExpr;
+            const obj = member.object.kind === 'IdentifierExpr' ? (member.object as AST.IdentifierExpr).name : 'unknown';
+            return { kind: 'account', path: `${obj}.${member.property}` };
+          }
+          default:
+            return { kind: 'const', value: 'unknown_seed' };
+        }
+      });
+      return { seeds };
+    }
+
+    // Check for seeds constraint
     const seedsConstraint = acc.constraints?.find((c: AST.AccountConstraint) => c.kind === 'seeds');
     if (!seedsConstraint) return undefined;
-    return {
-      seeds: [{ kind: 'const', value: 'program_seed' }],
-    };
+
+    // Extract seed value if available
+    if (seedsConstraint.value) {
+      const seedExpr = seedsConstraint.value;
+      if (seedExpr.kind === 'ArrayExpr') {
+        const seeds = (seedExpr as AST.ArrayExpr).elements.map(el => {
+          if (el.kind === 'StringLiteral') return { kind: 'const', type: 'string', value: (el as AST.StringLiteral).value };
+          if (el.kind === 'IdentifierExpr') return { kind: 'account', path: (el as AST.IdentifierExpr).name };
+          return { kind: 'const', value: 'dynamic' };
+        });
+        return { seeds };
+      }
+    }
+
+    return { seeds: [{ kind: 'const', value: 'program_seed' }] };
   }
 
   private mapType(type: AST.TypeAnnotation): string {

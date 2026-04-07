@@ -61,7 +61,7 @@ export class RustCodegen {
 
   private emitHeader(): void {
     this.emit('use anchor_lang::prelude::*;');
-    this.emit('use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer as SplTransfer, MintTo, Burn, CloseAccount as SplCloseAccount, Approve, Revoke};');
+    this.emit('use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer as SplTransfer, MintTo, Burn, CloseAccount as SplCloseAccount, Approve, Revoke, FreezeAccount, ThawAccount, SetAuthority, SyncNative};');
     this.emit('use anchor_spl::associated_token::{AssociatedToken, Create as CreateAta};');
     this.emit('');
     this.emit(`declare_id!(${this.programId});`);
@@ -887,6 +887,71 @@ export class RustCodegen {
         this.indent--;
         this.emit(');');
         this.emit('anchor_spl::associated_token::create(cpi_ctx)?;');
+        break;
+      }
+      case 'freeze_account': {
+        this.emit('let cpi_accounts = token::FreezeAccount {');
+        this.indent++;
+        this.emit(`account: ${getArg('account')}.to_account_info(),`);
+        this.emit(`mint: ${getArg('mint')}.to_account_info(),`);
+        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.indent--;
+        this.emit('};');
+        this.emit('let cpi_ctx = CpiContext::new(');
+        this.indent++;
+        this.emit('ctx.accounts.token_program.to_account_info(),');
+        this.emit('cpi_accounts,');
+        this.indent--;
+        this.emit(');');
+        this.emit('token::freeze_account(cpi_ctx)?;');
+        break;
+      }
+      case 'thaw_account': {
+        this.emit('let cpi_accounts = token::ThawAccount {');
+        this.indent++;
+        this.emit(`account: ${getArg('account')}.to_account_info(),`);
+        this.emit(`mint: ${getArg('mint')}.to_account_info(),`);
+        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.indent--;
+        this.emit('};');
+        this.emit('let cpi_ctx = CpiContext::new(');
+        this.indent++;
+        this.emit('ctx.accounts.token_program.to_account_info(),');
+        this.emit('cpi_accounts,');
+        this.indent--;
+        this.emit(');');
+        this.emit('token::thaw_account(cpi_ctx)?;');
+        break;
+      }
+      case 'set_authority': {
+        this.emit('let cpi_accounts = token::SetAuthority {');
+        this.indent++;
+        this.emit(`account_or_mint: ${getArg('account')}.to_account_info(),`);
+        this.emit(`current_authority: ${getArg('authority')}.to_account_info(),`);
+        this.indent--;
+        this.emit('};');
+        this.emit('let cpi_ctx = CpiContext::new(');
+        this.indent++;
+        this.emit('ctx.accounts.token_program.to_account_info(),');
+        this.emit('cpi_accounts,');
+        this.indent--;
+        this.emit(');');
+        this.emit(`token::set_authority(cpi_ctx, token::spl_token::instruction::AuthorityType::MintTokens, ${getArg('new_authority')})?;`);
+        break;
+      }
+      case 'sync_native': {
+        this.emit('let cpi_accounts = token::SyncNative {');
+        this.indent++;
+        this.emit(`account: ${getArg('account')}.to_account_info(),`);
+        this.indent--;
+        this.emit('};');
+        this.emit('let cpi_ctx = CpiContext::new(');
+        this.indent++;
+        this.emit('ctx.accounts.token_program.to_account_info(),');
+        this.emit('cpi_accounts,');
+        this.indent--;
+        this.emit(');');
+        this.emit('token::sync_native(cpi_ctx)?;');
         break;
       }
     }

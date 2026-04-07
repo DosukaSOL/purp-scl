@@ -237,3 +237,115 @@ ws.onmessage = (event) => {
   }
 };`;
 }
+
+// ============================================================================
+// Solana WebSocket Subscriptions
+// ============================================================================
+
+export interface SolanaSubscription {
+  id: number;
+  method: string;
+  unsubscribeMethod: string;
+}
+
+/**
+ * Subscribe to program logs via WebSocket.
+ */
+export function solanaSubscribeLogs(endpoint: string, programId: string): string {
+  const wsEndpoint = endpoint.replace('https://', 'wss://').replace('http://', 'ws://');
+  return `const ws = new WebSocket('${wsEndpoint}');
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'logsSubscribe',
+    params: [{ mentions: ['${programId}'] }, { commitment: 'confirmed' }]
+  }));
+};
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.method === 'logsNotification') {
+    const { signature, logs, err } = data.params.result.value;
+    handleLogsUpdate({ signature, logs, err });
+  }
+};`;
+}
+
+/**
+ * Subscribe to transaction signature confirmation.
+ */
+export function solanaSubscribeSignature(endpoint: string, signature: string): string {
+  const wsEndpoint = endpoint.replace('https://', 'wss://').replace('http://', 'ws://');
+  return `const ws = new WebSocket('${wsEndpoint}');
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'signatureSubscribe',
+    params: ['${signature}', { commitment: 'confirmed' }]
+  }));
+};
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.method === 'signatureNotification') {
+    handleSignatureConfirmed(data.params.result);
+    ws.close();
+  }
+};`;
+}
+
+/**
+ * Subscribe to all account changes for a program.
+ */
+export function solanaSubscribeProgram(endpoint: string, programId: string): string {
+  const wsEndpoint = endpoint.replace('https://', 'wss://').replace('http://', 'ws://');
+  return `const ws = new WebSocket('${wsEndpoint}');
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'programSubscribe',
+    params: ['${programId}', { encoding: 'jsonParsed', commitment: 'confirmed' }]
+  }));
+};
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.method === 'programNotification') {
+    const { pubkey, account } = data.params.result.value;
+    handleProgramAccountUpdate({ pubkey, account });
+  }
+};`;
+}
+
+/**
+ * Subscribe to slot changes.
+ */
+export function solanaSubscribeSlot(endpoint: string): string {
+  const wsEndpoint = endpoint.replace('https://', 'wss://').replace('http://', 'ws://');
+  return `const ws = new WebSocket('${wsEndpoint}');
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'slotSubscribe'
+  }));
+};
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.method === 'slotNotification') {
+    const { slot, parent, root } = data.params.result;
+    handleSlotUpdate({ slot, parent, root });
+  }
+};`;
+}
+
+/**
+ * Subscribe to root changes (finality).
+ */
+export function solanaSubscribeRoot(endpoint: string): string {
+  const wsEndpoint = endpoint.replace('https://', 'wss://').replace('http://', 'ws://');
+  return `const ws = new WebSocket('${wsEndpoint}');
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'rootSubscribe'
+  }));
+};
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.method === 'rootNotification') {
+    handleRootUpdate(data.params.result);
+  }
+};`;
+}
