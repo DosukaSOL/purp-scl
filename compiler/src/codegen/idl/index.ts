@@ -1,6 +1,6 @@
 // ============================================================================
-// Purp IDL Generator v1.1.0 — The Solana Coding Language
-// Generates Anchor-compatible IDL JSON from the Purp AST
+// Purp IDL Generator v2.0.0 — The Solana Coding Language
+// Generates IDL JSON from the Purp AST for client SDK generation
 // ============================================================================
 
 import * as AST from '../../ast/index.js';
@@ -45,7 +45,7 @@ export interface IDLType {
   };
 }
 
-export interface AnchorIDL {
+export interface PurpIDL {
   version: string;
   name: string;
   instructions: IDLInstruction[];
@@ -64,7 +64,7 @@ export class IDLCodegen {
   private types: IDLType[] = [];
   private programName: string = 'unknown';
 
-  generate(ast: AST.ProgramNode): AnchorIDL {
+  generate(ast: AST.ProgramNode): PurpIDL {
     this.instructions = [];
     this.accounts = [];
     this.events = [];
@@ -281,7 +281,7 @@ export class IDLCodegen {
   }
 }
 
-export function generateIDL(ast: AST.ProgramNode): AnchorIDL {
+export function generateIDL(ast: AST.ProgramNode): PurpIDL {
   const gen = new IDLCodegen();
   return gen.generate(ast);
 }

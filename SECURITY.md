@@ -29,7 +29,7 @@ If you discover a security vulnerability in Purp SCL, please report it responsib
 
 ### Compiler Security
 - The Purp compiler runs locally and does not make network requests
-- Generated Rust code uses Anchor's safety primitives
+- Generated Rust code uses Pinocchio's zero-dependency safety primitives
 - Semantic analysis checks for missing signer validation
 
 ### CLI Security  
@@ -38,7 +38,7 @@ If you discover a security vulnerability in Purp SCL, please report it responsib
 - All operations are local unless explicitly deploying
 
 ### Code Generation Safety
-- Generated Rust uses `#[account]` derive macro for safe serialization
+- Generated Rust uses `BorshSerialize`/`BorshDeserialize` derives for safe serialization
 - Owner checks are generated when account ownership is verified in Purp source
 - System program and rent accounts are auto-included where needed
 
@@ -56,9 +56,9 @@ Purp SCL has minimal runtime dependencies:
 - Node.js standard library
 
 The compiled output depends on:
-- `anchor-lang` (Rust)
+- `pinocchio` (Rust)
 - `@solana/web3.js` (TypeScript)
-- `@coral-xyz/anchor` (TypeScript)
+- `bn.js` (TypeScript)
 
 ## Security Updates
 

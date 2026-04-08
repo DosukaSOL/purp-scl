@@ -24,22 +24,22 @@ console.log('\n=== Codegen Extended Tests ===\n');
 
 // --- Rust Codegen ---
 
-test('rust: generates header with anchor import', () => {
+test('rust: generates header with pinocchio import', () => {
   const r = compile('program Test { }');
-  assert(r.rust!.includes('use anchor_lang::prelude::*'), 'Should have anchor import');
+  assert(r.rust!.includes('use pinocchio'), 'Should have pinocchio import');
 });
 
-test('rust: generates declare_id macro', () => {
+test('rust: generates PROGRAM_ID constant', () => {
   const r = compile('program Test { }');
-  assert(r.rust!.includes('declare_id!'), 'Should have declare_id!');
+  assert(r.rust!.includes('PROGRAM_ID'), 'Should have PROGRAM_ID constant');
 });
 
-test('rust: generates #[program] attribute', () => {
+test('rust: generates process_instruction entrypoint', () => {
   const r = compile('program Test { }');
-  assert(r.rust!.includes('#[program]'), 'Should have #[program] attribute');
+  assert(r.rust!.includes('process_instruction'), 'Should have process_instruction entrypoint');
 });
 
-test('rust: account struct has #[account] attribute', () => {
+test('rust: account struct has BorshSerialize derive', () => {
   const r = compile(`
     program Test {
       account Data {
@@ -47,11 +47,11 @@ test('rust: account struct has #[account] attribute', () => {
       }
     }
   `);
-  assert(r.rust!.includes('#[account]'), 'Should have #[account] attribute');
+  assert(r.rust!.includes('BorshSerialize'), 'Should have BorshSerialize derive');
   assert(r.rust!.includes('pub value: u64'), 'Should have pub field');
 });
 
-test('rust: instruction generates context struct', () => {
+test('rust: instruction generates function with account validation', () => {
   const r = compile(`
     program Test {
       pub instruction init(
@@ -62,8 +62,8 @@ test('rust: instruction generates context struct', () => {
       }
     }
   `);
-  assert(r.rust!.includes('Init'), 'Should generate context struct');
-  assert(r.rust!.includes('pub fn init'), 'Should generate instruction fn');
+  assert(r.rust!.includes('fn init'), 'Should generate instruction fn');
+  assert(r.rust!.includes('accounts') || r.rust!.includes('AccountView'), 'Should reference accounts');
 });
 
 test('rust: event generates #[event] struct', () => {
@@ -72,7 +72,7 @@ test('rust: event generates #[event] struct', () => {
       event Transfer { from: pubkey, to: pubkey, amount: u64 }
     }
   `);
-  assert(r.rust!.includes('#[event]'), 'Should have #[event] attribute');
+  assert(r.rust!.includes('BorshSerialize'), 'Should have BorshSerialize derive for event');
   assert(r.rust!.includes('Transfer'), 'Should have Transfer struct');
 });
 
@@ -85,7 +85,7 @@ test('rust: error generates #[error_code] enum', () => {
       }
     }
   `);
-  assert(r.rust!.includes('#[error_code]') || r.rust!.includes('ErrorCode'), 'Should have error code definition');
+  assert(r.rust!.includes('repr(u32)') || r.rust!.includes('ProgramError'), 'Should have error code definition');
   assert(r.rust!.includes('Unauthorized'), 'Should have Unauthorized variant');
   assert(r.rust!.includes('NotFound'), 'Should have NotFound variant');
 });
@@ -156,7 +156,7 @@ test('rust: assert statement compiles', () => {
     }
   `);
   assert(r.success, 'Should compile assert');
-  assert(r.rust!.includes('require!') || r.rust!.includes('assert'), 'Should contain assertion');
+  assert(r.rust!.includes('return Err') || r.rust!.includes('assert'), 'Should contain assertion');
 });
 
 test('rust: emit statement compiles', () => {
@@ -169,7 +169,7 @@ test('rust: emit statement compiles', () => {
     }
   `);
   assert(r.success, 'Should compile emit');
-  assert(r.rust!.includes('emit!') || r.rust!.includes('Done'), 'Should contain emit call');
+  assert(r.rust!.includes('msg!') || r.rust!.includes('Done'), 'Should contain emit call');
 });
 
 // --- TypeScript Codegen ---

@@ -30,7 +30,7 @@
      │          │
      ▼          ▼
   .rs files  .ts files
-  (Anchor)   (SDK)
+  (Pinocchio)(SDK)
 ```
 
 ## Components
@@ -87,7 +87,7 @@ Validates the AST before code generation:
 ### 5. Code Generation (`compiler/src/codegen/`)
 
 #### Rust Codegen (`codegen/rust/`)
-Generates Anchor-compatible Rust:
+Generates Pinocchio-powered Rust:
 - `declare_id!()` macro
 - `#[program]` module with instruction handlers
 - `#[derive(Accounts)]` context structs
@@ -100,7 +100,7 @@ Generates SDK client code:
 - Program client class with async methods
 - TypeScript interfaces for all accounts
 - Proper type mapping (u64 → BN, pubkey → PublicKey, etc.)
-- @solana/web3.js and @coral-xyz/anchor imports
+- @solana/web3.js imports
 
 ### 6. Error System (`compiler/src/errors/`)
 

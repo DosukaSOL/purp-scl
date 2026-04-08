@@ -48,25 +48,26 @@ function ensureTargetDir(): void {
   }
 }
 
-function createAnchorToml(network: string, programId?: string): string {
-  const cluster = network === 'mainnet' ? 'mainnet-beta' : network;
-  const id = programId ?? 'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS';
-  return `[features]
-seeds = false
-skip-lint = false
+function createCargoToml(programName: string): string {
+  return `[package]
+name = "${programName}"
+version = "0.1.0"
+edition = "2021"
 
-[programs.${cluster}]
-purp_program = "${id}"
+[lib]
+crate-type = ["cdylib", "lib"]
 
-[registry]
-url = "https://api.apr.dev"
+[dependencies]
+pinocchio = "0.10"
+pinocchio-token = "0.5"
+pinocchio-system = "0.4"
+borsh = "0.10"
+solana-program-log = "1.0"
 
-[provider]
-cluster = "${cluster}"
-wallet = "~/.config/solana/id.json"
-
-[scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
 `;
 }
 
@@ -81,23 +82,23 @@ export async function deployCommand(args: string[]): Promise<void> {
 
   // Step 1: Check dependencies
   const hasSolana = checkTool('solana');
-  const hasAnchor = checkTool('anchor');
   const hasCargo = checkTool('cargo');
+  const hasBuildSbf = checkTool('cargo-build-sbf');
 
   if (!hasSolana) {
     console.error('\x1b[31m✖ Solana CLI not found.\x1b[0m Install: sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"');
-    process.exit(1);
-  }
-  if (!hasAnchor) {
-    console.error('\x1b[31m✖ Anchor CLI not found.\x1b[0m Install: cargo install --git https://github.com/coral-xyz/anchor avm --locked');
     process.exit(1);
   }
   if (!hasCargo) {
     console.error('\x1b[31m✖ Cargo not found.\x1b[0m Install Rust: https://rustup.rs');
     process.exit(1);
   }
+  if (!hasBuildSbf) {
+    console.error('\x1b[31m✖ cargo-build-sbf not found.\x1b[0m Install Solana CLI tools: sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"');
+    process.exit(1);
+  }
 
-  console.log('\x1b[32m✓\x1b[0m Dependencies verified (solana, anchor, cargo)');
+  console.log('\x1b[32m✓\x1b[0m Dependencies verified (solana, cargo, cargo-build-sbf)');
 
   // Step 2: Set Solana cluster
   try {
@@ -117,35 +118,16 @@ export async function deployCommand(args: string[]): Promise<void> {
     console.log('\x1b[32m✓\x1b[0m Compilation complete');
   }
 
-  // Step 4: Ensure Anchor project structure
+  // Step 4: Ensure project structure
   ensureTargetDir();
   const targetDir = path.join(process.cwd(), 'target', 'rust');
-
-  // Write Anchor.toml if missing
-  const anchorToml = path.join(targetDir, 'Anchor.toml');
-  if (!fs.existsSync(anchorToml)) {
-    fs.writeFileSync(anchorToml, createAnchorToml(config.network, config.programId));
-    console.log('\x1b[32m✓\x1b[0m Generated Anchor.toml');
-  }
 
   // Write Cargo.toml if missing
   const cargoToml = path.join(targetDir, 'Cargo.toml');
   if (!fs.existsSync(cargoToml)) {
-    fs.writeFileSync(cargoToml, `[workspace]
-members = ["programs/*"]
-resolver = "2"
-
-[profile.release]
-overflow-checks = true
-lto = "fat"
-codegen-units = 1
-
-[profile.release.build-override]
-opt-level = 3
-incremental = false
-codegen-units = 1
-`);
-    console.log('\x1b[32m✓\x1b[0m Generated Cargo.toml');
+    const programName = path.basename(process.cwd()).replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+    fs.writeFileSync(cargoToml, createCargoToml(programName));
+    console.log('\x1b[32m✓\x1b[0m Generated Cargo.toml (Pinocchio)');
   }
 
   if (config.dryRun) {
@@ -156,21 +138,24 @@ codegen-units = 1
     return;
   }
 
-  // Step 5: Run Anchor build + deploy
-  console.log('\x1b[36m⟡\x1b[0m Running Anchor build...');
-  const buildResult = spawnSync('anchor', ['build'], { cwd: targetDir, stdio: 'inherit' });
+  // Step 5: Build with cargo-build-sbf
+  console.log('\x1b[36m⟡\x1b[0m Running cargo-build-sbf...');
+  const buildResult = spawnSync('cargo-build-sbf', [], { cwd: targetDir, stdio: 'inherit' });
   if (buildResult.status !== 0) {
-    console.error('\x1b[31m✖ Anchor build failed.\x1b[0m');
+    console.error('\x1b[31m✖ cargo-build-sbf failed.\x1b[0m');
     console.log('  Check the generated Rust code in target/rust/');
     process.exit(1);
   }
-  console.log('\x1b[32m✓\x1b[0m Anchor build succeeded');
+  console.log('\x1b[32m✓\x1b[0m Build succeeded');
 
-  const deployArgs = config.upgrade ? ['upgrade'] : ['deploy'];
-  if (config.keypair) deployArgs.push('--provider.wallet', config.keypair);
+  // Step 6: Deploy with solana program deploy
+  const soPath = path.join(targetDir, 'target', 'deploy', '*.so');
+  const deployArgs = ['program', config.upgrade ? 'upgrade' : 'deploy'];
+
+  if (config.keypair) deployArgs.push('--keypair', config.keypair);
 
   console.log(`\x1b[36m⟡\x1b[0m Deploying to ${config.network}...`);
-  const deployResult = spawnSync('anchor', deployArgs, { cwd: targetDir, stdio: 'inherit' });
+  const deployResult = spawnSync('solana', [...deployArgs, soPath], { cwd: targetDir, stdio: 'inherit', shell: true });
   if (deployResult.status !== 0) {
     console.error(`\x1b[31m✖ Deployment failed.\x1b[0m`);
     process.exit(1);

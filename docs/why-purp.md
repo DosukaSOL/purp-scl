@@ -5,7 +5,7 @@
 Building on Solana today requires mastering multiple languages and tools:
 
 1. **Rust** for on-chain programs
-2. **Anchor framework** for reduced boilerplate (still Rust)
+2. **Pinocchio** for zero-dependency, optimized programs (still Rust)
 3. **TypeScript** for client SDKs
 4. **React/Next.js** for frontends
 5. **@solana/web3.js** for transaction construction
@@ -13,7 +13,7 @@ Building on Solana today requires mastering multiple languages and tools:
 7. **SPL Token libraries** for token operations
 
 Each layer has its own learning curve, configuration, and failure modes. A simple "create token and display it on a website" requires:
-- A Rust program with Anchor macros
+- A Rust program with Pinocchio's AccountView and manual dispatch
 - A TypeScript client with web3.js
 - A React frontend with wallet adapter
 - IDL generation and linking
@@ -59,10 +59,10 @@ If you know JavaScript or Python, you can read Purp. The syntax is deliberately 
 
 ### 3. Production-Ready Output
 Purp doesn't interpret code — it **compiles** to:
-- Anchor-compatible Rust (industry standard)
+- Pinocchio-powered Rust (zero-dependency, optimized)
 - TypeScript SDK (ready for integration)
 
-This means your deployed program is identical to what you'd write by hand in Anchor.
+This means your deployed program is identical to what you'd write by hand with Pinocchio.
 
 ### 4. Zero Boilerplate
 Purp auto-generates:
@@ -87,7 +87,7 @@ The `client {}` and `frontend {}` blocks mean you can prototype an entire dApp w
 ## What Purp is NOT
 
 - **Not a replacement for Rust** — complex programs may still benefit from hand-written Rust
-- **Not an interpreter** — Purp compiles to real Anchor code that deploys normally
+- **Not an interpreter** — Purp compiles to real Pinocchio Rust code that deploys normally
 - **Not a framework** — it's a language with its own compiler
 - **Not chain-agnostic** — Purp is Solana-only by design
 

@@ -1,6 +1,6 @@
 // ============================================================================
-// Purp TypeScript Code Generator v1.1.0 — The Solana Coding Language
-// Generates Anchor-compatible TypeScript client SDK
+// Purp TypeScript Code Generator v2.0.0 — The Solana Coding Language
+// Generates Solana TypeScript client SDK using @solana/web3.js
 // Complete with: IDL types, instruction methods, account fetchers,
 // event listeners, error parsing, generics, tuples, template literals,
 // client{} block codegen, frontend{} React component generation
@@ -160,7 +160,7 @@ export class TypeScriptCodegen {
     this.emit("import React, { useState, useEffect, useCallback } from 'react';");
     this.emit("import { useConnection, useWallet } from '@solana/wallet-adapter-react';");
     this.emit("import { PublicKey } from '@solana/web3.js';");
-    this.emit("import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';");
+    this.emit("import BN from 'bn.js';");
     this.emit('');
 
     // Re-emit account types for the frontend module
@@ -613,7 +613,7 @@ export class TypeScriptCodegen {
     this.emit('// Do not edit manually');
     this.emit('');
     this.emit("import { PublicKey, Connection, Transaction, TransactionInstruction, SystemProgram, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';");
-    this.emit("import { Program, AnchorProvider, BN, web3, Idl } from '@coral-xyz/anchor';");
+    this.emit("import BN from 'bn.js';");
     this.emit("import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';");
     this.emit('');
 
@@ -731,24 +731,23 @@ export class TypeScriptCodegen {
     this.emit('');
     this.emit(`export class ${className}Client {`);
     this.indent++;
-    this.emit('private program: Program;');
-    this.emit('private provider: AnchorProvider;');
+    this.emit('private programId: PublicKey;');
+    this.emit('private connection: Connection;');
     this.emit('');
 
     // Constructor
-    this.emit('constructor(program: Program, provider: AnchorProvider) {');
+    this.emit('constructor(programId: PublicKey, connection: Connection) {');
     this.indent++;
-    this.emit('this.program = program;');
-    this.emit('this.provider = provider;');
+    this.emit('this.programId = programId;');
+    this.emit('this.connection = connection;');
     this.indent--;
     this.emit('}');
     this.emit('');
 
     // Static factory
-    this.emit(`static create(programId: PublicKey, provider: AnchorProvider, idl: Idl): ${className}Client {`);
+    this.emit(`static create(programId: PublicKey, connection: Connection): ${className}Client {`);
     this.indent++;
-    this.emit('const program = new Program(idl, programId, provider);');
-    this.emit(`return new ${className}Client(program, provider);`);
+    this.emit(`return new ${className}Client(programId, connection);`);
     this.indent--;
     this.emit('}');
     this.emit('');

@@ -16,7 +16,7 @@ export const MICRO_LAMPORTS_PER_LAMPORT = 1_000_000;
 export const MAX_SEED_LENGTH = 32;                  // bytes per PDA seed
 export const MAX_SEEDS = 16;                        // max seeds per PDA
 export const MAX_ACCOUNT_DATA_SIZE = 10_485_760;    // 10 MiB
-export const ANCHOR_DISCRIMINATOR_SIZE = 8;         // bytes
+export const DISCRIMINATOR_SIZE = 8;               // bytes (alias for account discriminator)
 export const SLOTS_PER_SEC = 2;                     // approximate (~400ms slots)
 
 /**
@@ -29,10 +29,10 @@ export function rentExemptMinimum(dataSize: number): bigint {
 }
 
 /**
- * Calculate Anchor account space: 8 byte discriminator + data fields.
+ * Calculate account space: 8 byte discriminator + data fields.
  */
-export function anchorAccountSpace(dataSize: number): number {
-  return ANCHOR_DISCRIMINATOR_SIZE + dataSize;
+export function accountSpace(dataSize: number): number {
+  return DISCRIMINATOR_SIZE + dataSize;
 }
 
 /**

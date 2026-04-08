@@ -23,7 +23,7 @@ export async function doctorCommand(): Promise<void> {
     checkCommand('Rust', 'rustc --version', false, 'Install from https://rustup.rs'),
     checkCommand('Cargo', 'cargo --version', false),
     checkCommand('Solana CLI', 'solana --version', false, 'Install from https://docs.solana.com/cli/install-solana-cli-tools'),
-    checkCommand('Anchor', 'anchor --version', false, 'Install from https://www.anchor-lang.com/docs/installation'),
+    checkCommand('cargo-build-sbf', 'cargo-build-sbf --version', false, 'Install Solana CLI tools: sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"'),
     checkCommand('Git', 'git --version', true),
   ];
 

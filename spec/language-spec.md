@@ -5,7 +5,7 @@
 Purp is a statically-typed, compiled programming language designed for the Solana blockchain. Source files use the `.purp` extension.
 
 Purp compiles to:
-- Anchor-compatible Rust (for on-chain deployment)
+- Pinocchio-powered Rust (for on-chain deployment)
 - TypeScript (for client SDK generation)
 
 ## 2. Lexical Structure

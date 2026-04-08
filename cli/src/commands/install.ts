@@ -123,7 +123,7 @@ function installNpmDeps(packages: string[]): void {
   }
 
   // Always ensure core packages
-  toInstall.push('@solana/web3.js', '@coral-xyz/anchor');
+  toInstall.push('@solana/web3.js', 'bn.js');
 
   if (toInstall.length > 0) {
     const pkgJsonPath = path.join(process.cwd(), 'package.json');

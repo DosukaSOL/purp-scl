@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recursive descent parser with precedence climbing for expressions
 - Complete AST type definitions for all language constructs
 - Semantic analyzer with scope tracking, duplicate detection, and signer validation
-- Rust code generator producing Anchor-compatible output (#[program], #[derive(Accounts)], #[account], events, errors)
+- Rust code generator producing Pinocchio-powered output (entrypoint!, process_instruction, AccountView, Borsh serialization)
 - TypeScript code generator producing SDK client classes
 - Error system with categorized codes (1xxx-5xxx) and formatted diagnostics
 
@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `purp deploy` — Deploy to Solana networks (devnet, testnet, mainnet-beta, localnet)
 - `purp dev` — Watch mode with automatic recompilation
 - `purp generate` — Generate instruction, account, event, error, token, and NFT boilerplate
-- `purp doctor` — Check system dependencies (Node, Rust, Solana CLI, Anchor, Git)
+- `purp doctor` — Check system dependencies (Node, Rust, Solana CLI, cargo-build-sbf, Git)
 - `purp test` — Run test suite
 - `purp audit` — Security scanning for hardcoded keys and unsafe patterns
 - `purp clean` — Remove build artifacts
@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Architecture documentation
 - FAQ
 - "Why Purp" explainer
-- "Purp vs Anchor" comparison
+- "Purp vs Hand-Written Rust" comparison
 
 #### Infrastructure
 - GitHub Actions CI (lint, build, test, security audit)

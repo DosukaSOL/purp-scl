@@ -7,7 +7,7 @@
 
 <p align="center">
   Write Solana programs in a language that feels like home.<br/>
-  One <code>.purp</code> file → Anchor Rust + TypeScript SDK + Frontend — ready to deploy.
+  One <code>.purp</code> file → Pinocchio Rust + TypeScript SDK + Frontend — ready to deploy.
 </p>
 
 <br/>
@@ -38,7 +38,7 @@
 
 **Purp** is a high-level programming language purpose-built for [Solana](https://solana.com). It compiles `.purp` source files into:
 
-- **[Anchor](https://www.anchor-lang.com)-compatible Rust** — ready to deploy as Solana programs
+- **[Pinocchio](https://github.com/anza-xyz/pinocchio)-powered Rust** — ready to deploy as Solana programs
 - **TypeScript SDK** — auto-generated client code using [`@solana/web3.js`](https://solana.com/docs/clients/javascript)
 - **Frontend UI** — optional component output for dApp interfaces
 
@@ -49,7 +49,7 @@ Instead of juggling Rust, TypeScript, and IDL files separately, you write one `.
 | Pain Point | Purp Solution |
 |---|---|
 | Rust is hard for beginners | Purp uses familiar, readable syntax |
-| Anchor boilerplate is verbose | Auto-generates derive macros, account structs, IDL |
+| Rust boilerplate is verbose | Auto-generates account structs, serialization, dispatch |
 | Client code is separate from program | `client {}` block in the same file |
 | Frontend needs a separate project | `frontend {}` block with built-in components |
 | No standard way to handle tokens/NFTs | `@purp/stdlib` — Token, NFT, PDA, CPI helpers |
@@ -57,7 +57,7 @@ Instead of juggling Rust, TypeScript, and IDL files separately, you write one `.
 
 ## Quickstart
 
-> **Prerequisites:** [Node.js](https://nodejs.org) 18+, [Rust & Cargo](https://rustup.rs), [Solana CLI](https://solana.com/docs/intro/installation), [Anchor](https://www.anchor-lang.com/docs/installation)
+> **Prerequisites:** [Node.js](https://nodejs.org) 18+, [Rust & Cargo](https://rustup.rs), [Solana CLI](https://solana.com/docs/intro/installation), [cargo-build-sbf](https://docs.solanalabs.com/cli/install)
 
 ```bash
 git clone https://github.com/DosukaSOL/purp-scl.git && cd purp-scl
@@ -98,7 +98,7 @@ Build and deploy:
 
 ```bash
 purp check          # Type-check
-purp build          # Compile → Anchor Rust + TypeScript SDK
+purp build          # Compile → Pinocchio Rust + TypeScript SDK
 purp deploy --network devnet
 ```
 
@@ -108,7 +108,7 @@ purp deploy --network devnet
 `program`, `instruction`, `account`, `signer`, `PDA`, `token`, `mint`, `NFT` — all first-class keywords. Events, errors, and [CPI](https://solana.com/docs/core/cpi) are built into the syntax.
 
 ### Hybrid Compiler
-Lexer → Parser → AST → Semantic Analysis → Code Generation. Outputs [Anchor](https://www.anchor-lang.com)-compatible Rust with proper `#[program]`, `#[derive(Accounts)]`, events, and errors. Auto-generates a TypeScript client SDK.
+Lexer → Parser → AST → Semantic Analysis → Code Generation. Outputs [Pinocchio](https://github.com/anza-xyz/pinocchio)-powered Rust with manual instruction dispatch, account validation, and Borsh serialization. Auto-generates a TypeScript client SDK.
 
 ### CLI — 14 Commands
 
@@ -117,7 +117,7 @@ Lexer → Parser → AST → Semantic Analysis → Code Generation. Outputs [Anc
 | `purp init` / `purp new` | Scaffold from 11 templates |
 | `purp build` | Compile `.purp` → Rust + TypeScript |
 | `purp check` | Type-check without building |
-| `purp deploy` | Deploy to [Solana](https://solana.com/docs/intro/installation) via Anchor |
+| `purp deploy` | Deploy to [Solana](https://solana.com/docs/intro/installation) via cargo-build-sbf |
 | `purp test` | Run tests (AST → JS execution) |
 | `purp dev` | Watch mode with live recompilation |
 | `purp lint` | Lint with 13 Solana-specific rules |
@@ -304,7 +304,7 @@ purp-scl/
 │       ├── ast/
 │       ├── semantic/
 │       ├── typechecker/
-│       ├── codegen/    # → Anchor Rust, TypeScript, IDL, Frontend
+│       ├── codegen/    # → Pinocchio Rust, TypeScript, IDL, Frontend
 │       ├── formatter/
 │       ├── linter/
 │       ├── sourcemap/
@@ -366,7 +366,7 @@ MIT — see [LICENSE](./LICENSE) for details.
   &nbsp;
   <strong>Solana Resources</strong>
   <br/><br/>
-  <a href="https://solana.com">Solana</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://solana.com/docs">Solana Docs</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://www.anchor-lang.com">Anchor</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://spl.solana.com">SPL</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://explorer.solana.com">Explorer</a>
+  <a href="https://solana.com">Solana</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://solana.com/docs">Solana Docs</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://github.com/anza-xyz/pinocchio">Pinocchio</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://spl.solana.com">SPL</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://explorer.solana.com">Explorer</a>
   <br/><br/>
   <strong>Purp SCL v1.2.1</strong>&nbsp;&nbsp;—&nbsp;&nbsp;Built for the Solana ecosystem
   <br/><br/>

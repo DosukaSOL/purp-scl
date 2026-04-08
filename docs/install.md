@@ -10,7 +10,7 @@
 
 - **Rust** 1.70+ with Cargo
 - **Solana CLI** 1.16+
-- **Anchor** 0.29+
+- **cargo-build-sbf** (for building Solana programs)
 
 ## Installation Methods
 
@@ -59,7 +59,7 @@ $ purp doctor
   ✓ Rust         v1.75.0
   ✓ Cargo        v1.75.0
   ✓ Solana CLI   v1.17.0
-  ✓ Anchor       v0.29.0
+  ✓ cargo-build-sbf
   ✓ Git          v2.42.0
 
 All checks passed!
@@ -87,11 +87,9 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
 ```
 
-### Anchor not found
+### cargo-build-sbf not found
 ```bash
-cargo install --git https://github.com/coral-xyz/anchor avm --locked
-avm install latest
-avm use latest
+cargo install --locked cargo-build-sbf
 ```
 
 ## Uninstall

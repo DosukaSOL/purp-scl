@@ -7,7 +7,7 @@
 - [x] Recursive descent parser with precedence climbing
 - [x] Full AST type definitions
 - [x] Semantic analysis (scope tracking, duplicate detection, signer validation)
-- [x] Rust code generation (Anchor-compatible)
+- [x] Rust code generation (Pinocchio-powered)
 - [x] TypeScript SDK code generation
 - [x] Error system with categorized error codes
 
@@ -82,7 +82,7 @@
 - [x] Custom lint rules
 
 ### CLI Upgrades
-- [x] Real `purp deploy` — Anchor build + deploy pipeline with cluster config
+- [x] Real `purp deploy` — cargo-build-sbf + solana program deploy pipeline with cluster config
 - [x] Real `purp dev` — native file watching with debounced rebuilds
 - [x] Real `purp test` — AST-based test block extraction and execution
 - [x] `purp install` / `purp publish` — package management commands

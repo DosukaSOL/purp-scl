@@ -40,7 +40,7 @@ Table of Contents
 ================================================================================
 
 Purp SCL is a purpose-built programming language for writing Solana programs.
-It compiles to Anchor Rust (for on-chain deployment) and TypeScript (for
+It compiles to Pinocchio Rust (for on-chain deployment) and TypeScript (for
 client-side SDK generation). The syntax is modern and concise, drawing
 inspiration from Rust, TypeScript, and Solidity, but designed specifically
 for Solana's account model, PDAs, CPIs, and SPL tokens.
@@ -675,7 +675,7 @@ CPI Call
     signer_seeds: [b"vault", bump]
   };
 
-  Compiles to Rust (Anchor):
+  Compiles to Rust (Pinocchio):
     let cpi_ctx = CpiContext::new_with_signer(
       ctx.accounts.token_program.to_account_info(),
       Transfer {
@@ -727,8 +727,8 @@ Close Account
     authority: owner
   };
 
-  All SPL operations compile to Anchor's anchor_spl::token::* module calls
-  with appropriate CpiContext construction.
+  All SPL operations compile to pinocchio_token's instruction builders
+  with direct .invoke() calls.
 
 
 ================================================================================
@@ -936,7 +936,7 @@ Linter Rules
 
 Runtime Safety
 ──────────────
-  • Anchor's account discriminator checks
+  • Pinocchio's account discriminator checks
   • Automatic constraint validation
   • Signer verification on every transaction
   • PDA bump verification

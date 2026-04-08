@@ -2,7 +2,7 @@
 
 ## Overview
 
-Purp is a statically-typed, compiled language designed for the Solana blockchain. Source files use the `.purp` extension and compile to Anchor-compatible Rust and TypeScript.
+Purp is a statically-typed, compiled language designed for the Solana blockchain. Source files use the `.purp` extension and compile to Pinocchio-powered Rust and TypeScript.
 
 ## Program Declaration
 

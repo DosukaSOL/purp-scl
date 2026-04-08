@@ -81,11 +81,11 @@ test('compile program with error', () => {
   assert(result.rust!.includes('NotFound'), 'Rust should contain NotFound error');
 });
 
-test('Rust output contains Anchor boilerplate', () => {
+test('Rust output contains Pinocchio boilerplate', () => {
   const result = compile('program MyApp { }');
-  assert(result.rust!.includes('use anchor_lang::prelude::*'), 'Should import anchor_lang');
-  assert(result.rust!.includes('declare_id!'), 'Should have declare_id!');
-  assert(result.rust!.includes('#[program]'), 'Should have #[program]');
+  assert(result.rust!.includes('use pinocchio'), 'Should import pinocchio');
+  assert(result.rust!.includes('PROGRAM_ID'), 'Should have PROGRAM_ID');
+  assert(result.rust!.includes('process_instruction'), 'Should have process_instruction');
 });
 
 test('TypeScript output contains imports', () => {

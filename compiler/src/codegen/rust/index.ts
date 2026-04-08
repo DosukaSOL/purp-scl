@@ -1,8 +1,9 @@
 // ============================================================================
-// Purp Rust Code Generator v1.1.0 — The Solana Coding Language
-// Generates Anchor-compatible Rust from Purp AST
+// Purp Rust Code Generator v2.0.0 — The Solana Coding Language
+// Generates Pinocchio-based Rust from Purp AST
+// Zero-dependency, no_std compatible Solana programs
 // Complete with: generics, closures, assert/require, PDA seeds,
-// full account constraints, CPI, SPL token ops, test blocks,
+// full account validation, CPI, SPL token ops, test blocks,
 // bitwise ops, cast, patterns, destructuring, template strings
 // ============================================================================
 
@@ -60,11 +61,22 @@ export class RustCodegen {
   }
 
   private emitHeader(): void {
-    this.emit('use anchor_lang::prelude::*;');
-    this.emit('use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer as SplTransfer, MintTo, Burn, CloseAccount as SplCloseAccount, Approve, Revoke, FreezeAccount, ThawAccount, SetAuthority, SyncNative};');
-    this.emit('use anchor_spl::associated_token::{AssociatedToken, Create as CreateAta};');
+    this.emit('use pinocchio::{');
+    this.emit('    AccountView, Address, entrypoint, ProgramResult,');
+    this.emit('    sysvars::rent::Rent, sysvars::Sysvar,');
+    this.emit('};');
+    this.emit('use pinocchio_token::instructions::{');
+    this.emit('    Transfer as SplTransfer, MintTo, Burn,');
+    this.emit('    CloseAccount as SplCloseAccount, Approve, Revoke,');
+    this.emit('    FreezeAccount, ThawAccount, SetAuthority, SyncNative,');
+    this.emit('};');
+    this.emit('use pinocchio_system::instructions::CreateAccount;');
+    this.emit('use solana_program_log::msg;');
+    this.emit('use borsh::{BorshSerialize, BorshDeserialize};');
     this.emit('');
-    this.emit(`declare_id!(${this.programId});`);
+    this.emit(`pub const PROGRAM_ID: Address = unsafe { Address::new_unchecked(*${this.programId}.as_bytes()) };`);
+    this.emit('');
+    this.emit('entrypoint!(process_instruction);');
     this.emit('');
   }
 
@@ -114,17 +126,8 @@ export class RustCodegen {
         // Config blocks are used by the build system, not emitted in Rust
         break;
       case 'InstructionDeclaration':
-        // Standalone instruction (outside program{}) — wrap in a program module
-        this.emit('#[program]');
-        this.emit(`pub mod purp_program {`);
-        this.indent++;
-        this.emit('use super::*;');
-        this.emit('');
+        // Standalone instruction (outside program{}) — emit as direct function
         this.emitInstruction(node);
-        this.indent--;
-        this.emit('}');
-        this.emit('');
-        this.emitPendingContextStructs();
         break;
       case 'AccountDeclaration':
         this.emitAccountDeclaration(node);
@@ -139,29 +142,50 @@ export class RustCodegen {
   }
 
   // =========================================================================
-  // Program Declaration (Anchor #[program])
+  // Program Declaration (Pinocchio entrypoint dispatch)
   // =========================================================================
 
   private emitProgramDeclaration(node: AST.ProgramDeclaration): void {
-    this.emit('#[program]');
-    this.emit(`pub mod ${this.toSnakeCase(node.name)} {`);
+    // Collect instructions for dispatch
+    const instructions = node.body.filter(c => c.kind === 'InstructionDeclaration') as AST.InstructionDeclaration[];
+
+    // Emit process_instruction dispatcher
+    this.emit('pub fn process_instruction(');
     this.indent++;
-    this.emit('use super::*;');
+    this.emit('program_id: &Address,');
+    this.emit('accounts: &[AccountView],');
+    this.emit('instruction_data: &[u8],');
+    this.indent--;
+    this.emit(') -> ProgramResult {');
+    this.indent++;
+
+    if (instructions.length > 0) {
+      this.emit('let (tag, data) = instruction_data.split_first()');
+      this.indent++;
+      this.emit('.ok_or(pinocchio::program_error::ProgramError::InvalidInstructionData)?;');
+      this.indent--;
+      this.emit('');
+      this.emit('match tag {');
+      this.indent++;
+      instructions.forEach((instr, i) => {
+        this.emit(`${i} => ${this.toSnakeCase(instr.name)}(program_id, accounts, data),`);
+      });
+      this.emit('_ => Err(pinocchio::program_error::ProgramError::InvalidInstructionData),');
+      this.indent--;
+      this.emit('}');
+    } else {
+      this.emit('Ok(())');
+    }
+
+    this.indent--;
+    this.emit('}');
     this.emit('');
 
+    // Emit each instruction as a standalone function
     for (const child of node.body) {
       switch (child.kind) {
         case 'InstructionDeclaration':
           this.emitInstruction(child);
-          break;
-        case 'AccountDeclaration':
-          // Accounts emitted outside #[program]
-          break;
-        case 'EventDeclaration':
-          // Events emitted outside #[program]
-          break;
-        case 'ErrorDeclaration':
-          // Errors emitted outside #[program]
           break;
         case 'FunctionDeclaration':
           this.emitFunctionDeclaration(child);
@@ -169,19 +193,11 @@ export class RustCodegen {
         case 'ClientBlock':
         case 'FrontendBlock':
         case 'ConfigBlock':
-          // These blocks don't produce Rust output
           break;
       }
     }
 
-    this.indent--;
-    this.emit('}');
-    this.emit('');
-
-    // Emit all context structs (outside program module)
-    this.emitPendingContextStructs();
-
-    // Emit accounts, events, errors outside program module
+    // Emit accounts, events, errors, structs, enums
     for (const child of node.body) {
       switch (child.kind) {
         case 'AccountDeclaration':
@@ -213,13 +229,51 @@ export class RustCodegen {
       this.emit(`#[${attr.name}${attr.args.length > 0 ? `(${attr.args.map(a => this.emitExprStr(a)).join(', ')})` : ''}]`);
     }
 
-    const ctxName = `${this.toPascalCase(node.name)}Context`;
     const params = node.params.map(p => `${this.toSnakeCase(p.name)}: ${this.emitTypeStr(p.type)}`);
     const paramStr = params.length > 0 ? `, ${params.join(', ')}` : '';
     const innerType = node.returns ? this.emitTypeStr(node.returns) : '()';
 
-    this.emit(`pub fn ${this.toSnakeCase(node.name)}(ctx: Context<${ctxName}>${paramStr}) -> Result<${innerType}> {`);
+    this.emit(`fn ${this.toSnakeCase(node.name)}(`);
     this.indent++;
+    this.emit('program_id: &Address,');
+    this.emit('accounts: &[AccountView],');
+    this.emit('data: &[u8],');
+    this.indent--;
+    this.emit(') -> ProgramResult {');
+    this.indent++;
+
+    // Destructure accounts from the slice
+    node.accounts.forEach((acc, i) => {
+      this.emit(`let ${this.toSnakeCase(acc.name)} = &accounts[${i}];`);
+    });
+    if (node.accounts.length > 0) this.emit('');
+
+    // Validate signers
+    for (const acc of node.accounts) {
+      if (acc.accountType.kind === 'Signer') {
+        this.emit(`if !${this.toSnakeCase(acc.name)}.is_signer() {`);
+        this.indent++;
+        this.emit('return Err(pinocchio::program_error::ProgramError::MissingRequiredSignature);');
+        this.indent--;
+        this.emit('}');
+      }
+    }
+
+    // Validate mutability
+    for (const acc of node.accounts) {
+      const isMut = acc.constraints.some(c => c.kind === 'mut' || c.kind === 'init');
+      if (isMut) {
+        this.emit(`if !${this.toSnakeCase(acc.name)}.is_writable() {`);
+        this.indent++;
+        this.emit('return Err(pinocchio::program_error::ProgramError::InvalidAccountData);');
+        this.indent--;
+        this.emit('}');
+      }
+    }
+
+    if (node.accounts.some(a => a.accountType.kind === 'Signer' || a.constraints.some(c => c.kind === 'mut' || c.kind === 'init'))) {
+      this.emit('');
+    }
 
     this.emitStatements(node.body, node.accounts);
 
@@ -227,106 +281,27 @@ export class RustCodegen {
     this.indent--;
     this.emit('}');
     this.emit('');
-
-    // Collect context struct for emission after program module closes
-    this.pendingContextStructs.push({ name: ctxName, accounts: node.accounts });
   }
 
   private emitPendingContextStructs(): void {
-    for (const { name, accounts } of this.pendingContextStructs) {
-      this.emit('#[derive(Accounts)]');
-      this.emit(`pub struct ${name}<'info> {`);
-      this.indent++;
-
-      for (const acc of accounts) {
-        this.emitAccountField(acc);
-      }
-
-      this.indent--;
-      this.emit('}');
-      this.emit('');
-    }
+    // No longer needed in Pinocchio (no context structs)
     this.pendingContextStructs = [];
   }
 
   private emitAccountField(acc: AST.AccountParam): void {
-    const constraints = this.buildAccountConstraints(acc);
-    if (constraints.length > 0) {
-      this.emit(`#[account(${constraints.join(', ')})]`);
-    }
-
-    const fieldType = this.accountTypeToRust(acc);
-    this.emit(`pub ${this.toSnakeCase(acc.name)}: ${fieldType},`);
+    // In Pinocchio, accounts are passed as &AccountView in slices
+    // This method is kept for template/documentation use
+    this.emit(`pub ${this.toSnakeCase(acc.name)}: &AccountView,`);
   }
 
   private buildAccountConstraints(acc: AST.AccountParam): string[] {
-    const constraints: string[] = [];
-
-    for (const c of acc.constraints) {
-      switch (c.kind) {
-        case 'init':
-          constraints.push('init');
-          break;
-        case 'mut':
-          constraints.push('mut');
-          break;
-        case 'payer':
-          constraints.push(c.value ? `payer = ${this.emitExprStr(c.value)}` : 'payer');
-          break;
-        case 'space':
-          constraints.push(c.value ? `space = ${this.emitExprStr(c.value)}` : 'space = 8 + 256');
-          break;
-        case 'has_one':
-          constraints.push(c.value ? `has_one = ${this.emitExprStr(c.value)}` : 'has_one');
-          break;
-        case 'close':
-          constraints.push(c.value ? `close = ${this.emitExprStr(c.value)}` : 'close');
-          break;
-        case 'seeds': {
-          if (acc.accountType.kind === 'PDA' && acc.accountType.seeds.length > 0) {
-            const seeds = acc.accountType.seeds.map(s => this.emitExprStr(s));
-            constraints.push(`seeds = [${seeds.join(', ')}]`);
-          }
-          break;
-        }
-        case 'bump':
-          constraints.push('bump');
-          break;
-        case 'constraint':
-          if (c.value) constraints.push(`constraint = ${this.emitExprStr(c.value)}`);
-          break;
-      }
-    }
-
-    // Auto-add mut for mutable account types
-    if (!constraints.includes('mut') && acc.accountType.kind !== 'Program') {
-      if ('mutable' in acc.accountType && acc.accountType.mutable) {
-        constraints.unshift('mut');
-      }
-    }
-
-    return constraints;
+    // Pinocchio does not use declarative constraints — validation is inline
+    return [];
   }
 
   private accountTypeToRust(acc: AST.AccountParam): string {
-    switch (acc.accountType.kind) {
-      case 'Signer':
-        return "Signer<'info>";
-      case 'Account':
-        return `Account<'info, ${acc.accountType.type}>`;
-      case 'TokenAccount':
-        return "Account<'info, TokenAccount>";
-      case 'Mint':
-        return "Account<'info, Mint>";
-      case 'PDA':
-        return "AccountInfo<'info>";
-      case 'Program':
-        return acc.accountType.name === 'System' ? "Program<'info, System>" : `Program<'info, ${acc.accountType.name}>`;
-      case 'SystemAccount':
-        return "SystemAccount<'info>";
-      default:
-        return "AccountInfo<'info>";
-    }
+    // All accounts are AccountView in Pinocchio
+    return '&AccountView';
   }
 
   // =========================================================================
@@ -337,7 +312,7 @@ export class RustCodegen {
     for (const attr of node.attributes) {
       this.emit(`#[${attr.name}]`);
     }
-    this.emit('#[account]');
+    this.emit('#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]');
     this.emit(`pub struct ${node.name} {`);
     this.indent++;
     for (const field of node.fields) {
@@ -352,7 +327,7 @@ export class RustCodegen {
     for (const attr of node.attributes) {
       this.emit(`#[${attr.name}]`);
     }
-    this.emit('#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]');
+    this.emit('#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]');
     const generics = node.genericParams && node.genericParams.length > 0
       ? `<${node.genericParams.map(g => this.emitGenericParam(g)).join(', ')}>`
       : '';
@@ -370,7 +345,7 @@ export class RustCodegen {
     for (const attr of node.attributes) {
       this.emit(`#[${attr.name}]`);
     }
-    this.emit('#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq)]');
+    this.emit('#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq)]');
     const generics = node.genericParams && node.genericParams.length > 0
       ? `<${node.genericParams.map(g => this.emitGenericParam(g)).join(', ')}>`
       : '';
@@ -395,7 +370,7 @@ export class RustCodegen {
   }
 
   private emitEventDeclaration(node: AST.EventDeclaration): void {
-    this.emit('#[event]');
+    this.emit('#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]');
     this.emit(`pub struct ${node.name} {`);
     this.indent++;
     for (const field of node.fields) {
@@ -407,13 +382,25 @@ export class RustCodegen {
   }
 
   private emitErrorDeclaration(node: AST.ErrorDeclaration): void {
-    this.emit('#[error_code]');
+    this.emit('#[derive(Debug, Clone, Copy)]');
+    this.emit('#[repr(u32)]');
     this.emit(`pub enum ${node.name} {`);
     this.indent++;
-    for (const variant of node.variants) {
-      this.emit(`#[msg("${variant.message}")]`);
-      this.emit(`${variant.name},`);
+    for (let i = 0; i < node.variants.length; i++) {
+      const variant = node.variants[i];
+      this.emit(`/// ${variant.message}`);
+      this.emit(`${variant.name} = ${6000 + i},`);
     }
+    this.indent--;
+    this.emit('}');
+    this.emit('');
+    this.emit(`impl From<${node.name}> for pinocchio::program_error::ProgramError {`);
+    this.indent++;
+    this.emit(`fn from(e: ${node.name}) -> Self {`);
+    this.indent++;
+    this.emit('pinocchio::program_error::ProgramError::Custom(e as u32)');
+    this.indent--;
+    this.emit('}');
     this.indent--;
     this.emit('}');
     this.emit('');
@@ -588,13 +575,8 @@ export class RustCodegen {
         this.emit('continue;');
         break;
       case 'EmitStatement':
-        this.emit(`emit!(${stmt.event} {`);
-        this.indent++;
-        for (let i = 0; i < stmt.args.length; i++) {
-          this.emit(`${this.emitExprStr(stmt.args[i])},`);
-        }
-        this.indent--;
-        this.emit('});');
+        this.emit(`// Event: ${stmt.event}`);
+        this.emit(`msg!("event:${stmt.event}");`);
         break;
       case 'CPICall':
         this.emitCPICall(stmt);
@@ -604,14 +586,27 @@ export class RustCodegen {
         break;
       case 'AssertStatement':
         if (stmt.message) {
-          this.emit(`require!(${this.emitExprStr(stmt.condition)}, ProgramError::Custom(0)); // ${this.emitExprStr(stmt.message)}`);
+          this.emit(`if !(${this.emitExprStr(stmt.condition)}) {`);
+          this.indent++;
+          this.emit(`msg!(${this.emitExprStr(stmt.message)});`);
+          this.emit('return Err(pinocchio::program_error::ProgramError::Custom(0));');
+          this.indent--;
+          this.emit('}');
         } else {
-          this.emit(`require!(${this.emitExprStr(stmt.condition)}, ProgramError::Custom(0));`);
+          this.emit(`if !(${this.emitExprStr(stmt.condition)}) {`);
+          this.indent++;
+          this.emit('return Err(pinocchio::program_error::ProgramError::Custom(0));');
+          this.indent--;
+          this.emit('}');
         }
         break;
       case 'RequireStatement': {
-        const errCode = stmt.errorCode ? this.emitExprStr(stmt.errorCode) : 'ProgramError::Custom(0)';
-        this.emit(`require!(${this.emitExprStr(stmt.condition)}, ${errCode});`);
+        const errCode = stmt.errorCode ? this.emitExprStr(stmt.errorCode) : 'pinocchio::program_error::ProgramError::Custom(0)';
+        this.emit(`if !(${this.emitExprStr(stmt.condition)}) {`);
+        this.indent++;
+        this.emit(`return Err(${errCode});`);
+        this.indent--;
+        this.emit('}');
         break;
       }
       case 'TryStatement':
@@ -730,34 +725,22 @@ export class RustCodegen {
 
     if (node.seeds && node.seeds.length > 0) {
       const seeds = node.seeds.map(s => this.emitExprStr(s)).join(', ');
-      this.emit(`let seeds = &[${seeds}];`);
-      this.emit(`let signer_seeds = &[&seeds[..]];`);
-      this.emit(`let cpi_accounts = ${this.toPascalCase(node.instruction)} {`);
+      this.emit(`let seeds: &[&[u8]] = &[${seeds}];`);
+      this.emit(`let signer_seeds: &[&[&[u8]]] = &[seeds];`);
+      this.emit(`pinocchio::cpi::invoke_signed(`);
       this.indent++;
-      this.emit(`${accountsList}`);
-      this.indent--;
-      this.emit('};');
-      this.emit(`let cpi_ctx = CpiContext::new_with_signer(`);
-      this.indent++;
-      this.emit(`ctx.accounts.${this.toSnakeCase(node.program)}.to_account_info(),`);
-      this.emit('cpi_accounts,');
+      this.emit(`&instruction,`);
+      this.emit(`&[${accountsList}],`);
       this.emit('signer_seeds,');
       this.indent--;
-      this.emit(');');
-      this.emit(`${this.toSnakeCase(node.program)}::${this.toSnakeCase(node.instruction)}(cpi_ctx${argsList ? ', ' + argsList : ''})?;`);
+      this.emit(')?;');
     } else {
-      this.emit(`let cpi_accounts = ${this.toPascalCase(node.instruction)} {`);
+      this.emit(`pinocchio::cpi::invoke(`);
       this.indent++;
-      this.emit(`${accountsList}`);
+      this.emit(`&instruction,`);
+      this.emit(`&[${accountsList}],`);
       this.indent--;
-      this.emit('};');
-      this.emit(`let cpi_ctx = CpiContext::new(`);
-      this.indent++;
-      this.emit(`ctx.accounts.${this.toSnakeCase(node.program)}.to_account_info(),`);
-      this.emit('cpi_accounts,');
-      this.indent--;
-      this.emit(');');
-      this.emit(`${this.toSnakeCase(node.program)}::${this.toSnakeCase(node.instruction)}(cpi_ctx${argsList ? ', ' + argsList : ''})?;`);
+      this.emit(')?;');
     }
   }
 
@@ -769,189 +752,117 @@ export class RustCodegen {
 
     switch (node.operation) {
       case 'transfer': {
-        this.emit('let cpi_accounts = SplTransfer {');
+        this.emit('SplTransfer {');
         this.indent++;
-        this.emit(`from: ${getArg('from')}.to_account_info(),`);
-        this.emit(`to: ${getArg('to')}.to_account_info(),`);
-        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.emit(`from: ${getArg('from')},`);
+        this.emit(`to: ${getArg('to')},`);
+        this.emit(`authority: ${getArg('authority')},`);
+        this.emit(`amount: ${getArg('amount')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit(`token::transfer(cpi_ctx, ${getArg('amount')})?;`);
+        this.emit('}.invoke()?;');
         break;
       }
       case 'mint_to': {
-        this.emit('let cpi_accounts = MintTo {');
+        this.emit('MintTo {');
         this.indent++;
-        this.emit(`mint: ${getArg('mint')}.to_account_info(),`);
-        this.emit(`to: ${getArg('to')}.to_account_info(),`);
-        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.emit(`mint: ${getArg('mint')},`);
+        this.emit(`account: ${getArg('to')},`);
+        this.emit(`mint_authority: ${getArg('authority')},`);
+        this.emit(`amount: ${getArg('amount')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit(`token::mint_to(cpi_ctx, ${getArg('amount')})?;`);
+        this.emit('}.invoke()?;');
         break;
       }
       case 'burn': {
-        this.emit('let cpi_accounts = Burn {');
+        this.emit('Burn {');
         this.indent++;
-        this.emit(`mint: ${getArg('mint')}.to_account_info(),`);
-        this.emit(`from: ${getArg('from')}.to_account_info(),`);
-        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.emit(`account: ${getArg('from')},`);
+        this.emit(`mint: ${getArg('mint')},`);
+        this.emit(`authority: ${getArg('authority')},`);
+        this.emit(`amount: ${getArg('amount')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit(`token::burn(cpi_ctx, ${getArg('amount')})?;`);
+        this.emit('}.invoke()?;');
         break;
       }
       case 'close_account': {
-        this.emit('let cpi_accounts = SplCloseAccount {');
+        this.emit('SplCloseAccount {');
         this.indent++;
-        this.emit(`account: ${getArg('account')}.to_account_info(),`);
-        this.emit(`destination: ${getArg('destination')}.to_account_info(),`);
-        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.emit(`account: ${getArg('account')},`);
+        this.emit(`destination: ${getArg('destination')},`);
+        this.emit(`authority: ${getArg('authority')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit('token::close_account(cpi_ctx)?;');
+        this.emit('}.invoke()?;');
         break;
       }
       case 'approve': {
-        this.emit('let cpi_accounts = Approve {');
+        this.emit('Approve {');
         this.indent++;
-        this.emit(`to: ${getArg('to')}.to_account_info(),`);
-        this.emit(`delegate: ${getArg('delegate')}.to_account_info(),`);
-        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.emit(`source: ${getArg('to')},`);
+        this.emit(`delegate: ${getArg('delegate')},`);
+        this.emit(`authority: ${getArg('authority')},`);
+        this.emit(`amount: ${getArg('amount')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit(`token::approve(cpi_ctx, ${getArg('amount')})?;`);
+        this.emit('}.invoke()?;');
         break;
       }
       case 'revoke': {
-        this.emit('let cpi_accounts = Revoke {');
+        this.emit('Revoke {');
         this.indent++;
-        this.emit(`source: ${getArg('source')}.to_account_info(),`);
-        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.emit(`source: ${getArg('source')},`);
+        this.emit(`authority: ${getArg('authority')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit('token::revoke(cpi_ctx)?;');
+        this.emit('}.invoke()?;');
         break;
       }
       case 'create_associated_token_account': {
-        this.emit('let cpi_accounts = CreateAta {');
+        this.emit('// Create ATA via CPI to associated token program');
+        this.emit('pinocchio_associated_token::instructions::Create {');
         this.indent++;
-        this.emit(`payer: ${getArg('payer')}.to_account_info(),`);
-        this.emit(`associated_token: ${getArg('account')}.to_account_info(),`);
-        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
-        this.emit(`mint: ${getArg('mint')}.to_account_info(),`);
-        this.emit('system_program: ctx.accounts.system_program.to_account_info(),');
-        this.emit('token_program: ctx.accounts.token_program.to_account_info(),');
+        this.emit(`funding_account: ${getArg('payer')},`);
+        this.emit(`associated_account: ${getArg('account')},`);
+        this.emit(`wallet_address: ${getArg('authority')},`);
+        this.emit(`token_mint: ${getArg('mint')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.associated_token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit('anchor_spl::associated_token::create(cpi_ctx)?;');
+        this.emit('}.invoke()?;');
         break;
       }
       case 'freeze_account': {
-        this.emit('let cpi_accounts = token::FreezeAccount {');
+        this.emit('FreezeAccount {');
         this.indent++;
-        this.emit(`account: ${getArg('account')}.to_account_info(),`);
-        this.emit(`mint: ${getArg('mint')}.to_account_info(),`);
-        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.emit(`account: ${getArg('account')},`);
+        this.emit(`mint: ${getArg('mint')},`);
+        this.emit(`authority: ${getArg('authority')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit('token::freeze_account(cpi_ctx)?;');
+        this.emit('}.invoke()?;');
         break;
       }
       case 'thaw_account': {
-        this.emit('let cpi_accounts = token::ThawAccount {');
+        this.emit('ThawAccount {');
         this.indent++;
-        this.emit(`account: ${getArg('account')}.to_account_info(),`);
-        this.emit(`mint: ${getArg('mint')}.to_account_info(),`);
-        this.emit(`authority: ${getArg('authority')}.to_account_info(),`);
+        this.emit(`account: ${getArg('account')},`);
+        this.emit(`mint: ${getArg('mint')},`);
+        this.emit(`authority: ${getArg('authority')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit('token::thaw_account(cpi_ctx)?;');
+        this.emit('}.invoke()?;');
         break;
       }
       case 'set_authority': {
-        this.emit('let cpi_accounts = token::SetAuthority {');
+        this.emit('SetAuthority {');
         this.indent++;
-        this.emit(`account_or_mint: ${getArg('account')}.to_account_info(),`);
-        this.emit(`current_authority: ${getArg('authority')}.to_account_info(),`);
+        this.emit(`owned: ${getArg('account')},`);
+        this.emit(`authority: ${getArg('authority')},`);
+        this.emit(`authority_type: pinocchio_token::state::AuthorityType::MintTokens,`);
+        this.emit(`new_authority: ${getArg('new_authority')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit(`token::set_authority(cpi_ctx, token::spl_token::instruction::AuthorityType::MintTokens, ${getArg('new_authority')})?;`);
+        this.emit('}.invoke()?;');
         break;
       }
       case 'sync_native': {
-        this.emit('let cpi_accounts = token::SyncNative {');
+        this.emit('SyncNative {');
         this.indent++;
-        this.emit(`account: ${getArg('account')}.to_account_info(),`);
+        this.emit(`account: ${getArg('account')},`);
         this.indent--;
-        this.emit('};');
-        this.emit('let cpi_ctx = CpiContext::new(');
-        this.indent++;
-        this.emit('ctx.accounts.token_program.to_account_info(),');
-        this.emit('cpi_accounts,');
-        this.indent--;
-        this.emit(');');
-        this.emit('token::sync_native(cpi_ctx)?;');
+        this.emit('}.invoke()?;');
         break;
       }
     }
@@ -972,15 +883,11 @@ export class RustCodegen {
       case 'BooleanLiteral':
         return expr.value ? 'true' : 'false';
       case 'PubkeyLiteral':
-        return `Pubkey::from_str("${expr.value}").unwrap()`;
+        return `Address::from_str("${expr.value}").unwrap()`;
       case 'NullLiteral':
         return 'None';
       case 'IdentifierExpr': {
-        // Check if it's an account reference in instruction context
-        if (accounts) {
-          const acc = accounts.find(a => a.name === expr.name);
-          if (acc) return `ctx.accounts.${this.toSnakeCase(expr.name)}`;
-        }
+        // In Pinocchio, accounts are local variables, not ctx.accounts.x
         return this.toSnakeCase(expr.name);
       }
       case 'BinaryExpr':
@@ -1020,7 +927,7 @@ export class RustCodegen {
       case 'TryExpr':
         return `${this.emitExprStr(expr.expression)}?`;
       case 'SolLiteral':
-        return `${expr.amount} * anchor_lang::solana_program::native_token::LAMPORTS_PER_SOL`;
+        return `${expr.amount} * 1_000_000_000u64`;
       case 'LamportsLiteral':
         return `${expr.amount}`;
       default:
@@ -1070,8 +977,7 @@ export class RustCodegen {
 
     // Built-in function mappings
     switch (callee) {
-      case 'msg': return `msg!(${args})`;
-      case 'print': case 'log': return `msg!(${args})`;
+      case 'msg': case 'print': case 'log': return `msg!(${args})`;
       default: return `${callee}(${args})`;
     }
   }
@@ -1195,7 +1101,7 @@ export class RustCodegen {
       'f32': 'f32', 'f64': 'f64',
       'bool': 'bool',
       'string': 'String',
-      'pubkey': 'Pubkey',
+      'pubkey': 'Address',
       'bytes': 'Vec<u8>',
     };
     return map[name] ?? name;

@@ -37,7 +37,7 @@ purp build
 ```
 
 **Output:**
-- `target/rust/` — Anchor-compatible Rust files
+- `target/rust/` — Pinocchio-powered Rust files
 - `target/typescript/` — TypeScript SDK files
 
 ---
@@ -126,7 +126,7 @@ purp doctor
 - Node.js, npm
 - Rust, Cargo
 - Solana CLI
-- Anchor
+- cargo-build-sbf
 - Git
 
 ---

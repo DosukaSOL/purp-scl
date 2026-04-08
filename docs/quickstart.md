@@ -74,14 +74,14 @@ purp build
 ```
 
 This generates:
-- `target/rust/hello_purp.rs` — Anchor-compatible Rust program
+- `target/rust/hello_purp.rs` — Pinocchio-powered Rust program
 - `target/typescript/hello_purp.ts` — TypeScript client SDK
 
 ## Step 5: Review Generated Code
 
 ### Rust Output (simplified)
 ```rust
-use anchor_lang::prelude::*;
+use pinocchio::{AccountView, Address, entrypoint, ProgramResult};
 
 declare_id!("...");
 
@@ -113,7 +113,7 @@ export class HelloPurpClient {
 
 ## Step 6: Deploy (Optional)
 
-Requires Solana CLI and Anchor:
+Requires Solana CLI and cargo-build-sbf:
 
 ```bash
 # Deploy to devnet
