@@ -63,6 +63,7 @@ export class RustCodegen {
   private emitHeader(): void {
     this.emit('use pinocchio::{');
     this.emit('    AccountView, Address, entrypoint, ProgramResult,');
+    this.emit('    program_error::ProgramError,');
     this.emit('    sysvars::rent::Rent, sysvars::Sysvar,');
     this.emit('};');
     this.emit('use pinocchio_token::instructions::{');
@@ -71,10 +72,11 @@ export class RustCodegen {
     this.emit('    FreezeAccount, ThawAccount, SetAuthority, SyncNative,');
     this.emit('};');
     this.emit('use pinocchio_system::instructions::CreateAccount;');
-    this.emit('use solana_program_log::msg;');
+    this.emit('use pinocchio_log::log;');
     this.emit('use borsh::{BorshSerialize, BorshDeserialize};');
     this.emit('');
-    this.emit(`pub const PROGRAM_ID: Address = unsafe { Address::new_unchecked(*${this.programId}.as_bytes()) };`);
+    this.emit('// Replace with your deployed program ID bytes');
+    this.emit('pub const PROGRAM_ID: Address = unsafe { Address::new_unchecked([0u8; 32]) };');
     this.emit('');
     this.emit('entrypoint!(process_instruction);');
     this.emit('');
@@ -162,7 +164,7 @@ export class RustCodegen {
     if (instructions.length > 0) {
       this.emit('let (tag, data) = instruction_data.split_first()');
       this.indent++;
-      this.emit('.ok_or(pinocchio::program_error::ProgramError::InvalidInstructionData)?;');
+      this.emit('.ok_or(ProgramError::InvalidInstructionData)?;');
       this.indent--;
       this.emit('');
       this.emit('match tag {');
@@ -170,7 +172,7 @@ export class RustCodegen {
       instructions.forEach((instr, i) => {
         this.emit(`${i} => ${this.toSnakeCase(instr.name)}(program_id, accounts, data),`);
       });
-      this.emit('_ => Err(pinocchio::program_error::ProgramError::InvalidInstructionData),');
+      this.emit('_ => Err(ProgramError::InvalidInstructionData),');
       this.indent--;
       this.emit('}');
     } else {
@@ -242,30 +244,38 @@ export class RustCodegen {
     this.emit(') -> ProgramResult {');
     this.indent++;
 
-    // Destructure accounts from the slice
+    // 1. Bind AccountViews — signers directly, typed accounts with _info suffix
     node.accounts.forEach((acc, i) => {
-      this.emit(`let ${this.toSnakeCase(acc.name)} = &accounts[${i}];`);
+      const name = this.toSnakeCase(acc.name);
+      if (acc.accountType.kind === 'Signer') {
+        this.emit(`let ${name} = &accounts[${i}];`);
+      } else {
+        this.emit(`let ${name}_info = &accounts[${i}];`);
+      }
     });
     if (node.accounts.length > 0) this.emit('');
 
-    // Validate signers
+    // 2. Validate signers
     for (const acc of node.accounts) {
       if (acc.accountType.kind === 'Signer') {
         this.emit(`if !${this.toSnakeCase(acc.name)}.is_signer() {`);
         this.indent++;
-        this.emit('return Err(pinocchio::program_error::ProgramError::MissingRequiredSignature);');
+        this.emit('return Err(ProgramError::MissingRequiredSignature);');
         this.indent--;
         this.emit('}');
       }
     }
 
-    // Validate mutability
+    // 3. Validate mutability
     for (const acc of node.accounts) {
       const isMut = acc.constraints.some(c => c.kind === 'mut' || c.kind === 'init');
       if (isMut) {
-        this.emit(`if !${this.toSnakeCase(acc.name)}.is_writable() {`);
+        const varName = acc.accountType.kind === 'Signer'
+          ? this.toSnakeCase(acc.name)
+          : `${this.toSnakeCase(acc.name)}_info`;
+        this.emit(`if !${varName}.is_writable() {`);
         this.indent++;
-        this.emit('return Err(pinocchio::program_error::ProgramError::InvalidAccountData);');
+        this.emit('return Err(ProgramError::InvalidAccountData);');
         this.indent--;
         this.emit('}');
       }
@@ -275,7 +285,67 @@ export class RustCodegen {
       this.emit('');
     }
 
+    // 4. Create signer key aliases (so `owner` resolves to Address, not AccountView)
+    for (const acc of node.accounts) {
+      if (acc.accountType.kind === 'Signer') {
+        const name = this.toSnakeCase(acc.name);
+        this.emit(`let ${name}_key = *${name}.key();`);
+      }
+    }
+    if (node.accounts.some(a => a.accountType.kind === 'Signer')) this.emit('');
+
+    // 5. Deserialize instruction parameters from data
+    if (node.params.length > 0) {
+      const argsStructName = this.toPascalCase(node.name) + 'Args';
+      this.emit('#[derive(BorshDeserialize)]');
+      this.emit(`struct ${argsStructName} {`);
+      this.indent++;
+      for (const p of node.params) {
+        this.emit(`pub ${this.toSnakeCase(p.name)}: ${this.emitTypeStr(p.type)},`);
+      }
+      this.indent--;
+      this.emit('}');
+      this.emit(`let args = ${argsStructName}::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)?;`);
+      for (const p of node.params) {
+        const pName = this.toSnakeCase(p.name);
+        this.emit(`let ${pName} = args.${pName};`);
+      }
+      this.emit('');
+    }
+
+    // 6. Deserialize typed accounts (non-signer, non-program accounts)
+    const typedAccounts: AST.AccountParam[] = [];
+    for (const acc of node.accounts) {
+      if (acc.accountType.kind !== 'Signer' && acc.accountType.kind !== 'Program') {
+        const typeName = acc.accountType.kind === 'Account' ? acc.accountType.type : null;
+        const accountDecl = typeName ? this.accounts.get(typeName) : null;
+        if (accountDecl) {
+          typedAccounts.push(acc);
+          const name = this.toSnakeCase(acc.name);
+          const isMut = acc.constraints.some(c => c.kind === 'mut' || c.kind === 'init');
+          const isInit = acc.constraints.some(c => c.kind === 'init');
+          const mutStr = isMut ? 'mut ' : '';
+          if (isInit) {
+            this.emit(`let ${mutStr}${name} = ${accountDecl.name}::default();`);
+          } else {
+            this.emit(`let ${mutStr}${name} = ${accountDecl.name}::try_from_slice(&${name}_info.data()[8..]).map_err(|_| ProgramError::InvalidAccountData)?;`);
+          }
+        }
+      }
+    }
+    if (typedAccounts.length > 0) this.emit('');
+
+    // 7. Emit instruction body
     this.emitStatements(node.body, node.accounts);
+
+    // 8. Serialize modified typed accounts back
+    for (const acc of typedAccounts) {
+      const isMut = acc.constraints.some(c => c.kind === 'mut' || c.kind === 'init');
+      if (isMut) {
+        const name = this.toSnakeCase(acc.name);
+        this.emit(`${name}.serialize(&mut &mut unsafe { ${name}_info.data_mut() }[8..])?;`);
+      }
+    }
 
     this.emit('Ok(())');
     this.indent--;
@@ -312,7 +382,7 @@ export class RustCodegen {
     for (const attr of node.attributes) {
       this.emit(`#[${attr.name}]`);
     }
-    this.emit('#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]');
+    this.emit('#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Default)]');
     this.emit(`pub struct ${node.name} {`);
     this.indent++;
     for (const field of node.fields) {
@@ -394,11 +464,11 @@ export class RustCodegen {
     this.indent--;
     this.emit('}');
     this.emit('');
-    this.emit(`impl From<${node.name}> for pinocchio::program_error::ProgramError {`);
+    this.emit(`impl From<${node.name}> for ProgramError {`);
     this.indent++;
     this.emit(`fn from(e: ${node.name}) -> Self {`);
     this.indent++;
-    this.emit('pinocchio::program_error::ProgramError::Custom(e as u32)');
+    this.emit('ProgramError::Custom(e as u32)');
     this.indent--;
     this.emit('}');
     this.indent--;
@@ -576,7 +646,7 @@ export class RustCodegen {
         break;
       case 'EmitStatement':
         this.emit(`// Event: ${stmt.event}`);
-        this.emit(`msg!("event:${stmt.event}");`);
+        this.emit(`log("event:${stmt.event}");`);
         break;
       case 'CPICall':
         this.emitCPICall(stmt);
@@ -588,20 +658,20 @@ export class RustCodegen {
         if (stmt.message) {
           this.emit(`if !(${this.emitExprStr(stmt.condition)}) {`);
           this.indent++;
-          this.emit(`msg!(${this.emitExprStr(stmt.message)});`);
-          this.emit('return Err(pinocchio::program_error::ProgramError::Custom(0));');
+          this.emit(`log(${this.emitExprStr(stmt.message)});`);
+          this.emit('return Err(ProgramError::Custom(0));');
           this.indent--;
           this.emit('}');
         } else {
           this.emit(`if !(${this.emitExprStr(stmt.condition)}) {`);
           this.indent++;
-          this.emit('return Err(pinocchio::program_error::ProgramError::Custom(0));');
+          this.emit('return Err(ProgramError::Custom(0));');
           this.indent--;
           this.emit('}');
         }
         break;
       case 'RequireStatement': {
-        const errCode = stmt.errorCode ? this.emitExprStr(stmt.errorCode) : 'pinocchio::program_error::ProgramError::Custom(0)';
+        const errCode = stmt.errorCode ? this.emitExprStr(stmt.errorCode) : 'ProgramError::Custom(0)';
         this.emit(`if !(${this.emitExprStr(stmt.condition)}) {`);
         this.indent++;
         this.emit(`return Err(${errCode});`);
@@ -887,7 +957,13 @@ export class RustCodegen {
       case 'NullLiteral':
         return 'None';
       case 'IdentifierExpr': {
-        // In Pinocchio, accounts are local variables, not ctx.accounts.x
+        // In Pinocchio, signer names resolve to their Address key
+        const signerAcc = accounts?.find(a =>
+          a.accountType.kind === 'Signer' && this.toSnakeCase(a.name) === this.toSnakeCase(expr.name)
+        );
+        if (signerAcc) {
+          return `${this.toSnakeCase(expr.name)}_key`;
+        }
         return this.toSnakeCase(expr.name);
       }
       case 'BinaryExpr':
@@ -977,7 +1053,7 @@ export class RustCodegen {
 
     // Built-in function mappings
     switch (callee) {
-      case 'msg': case 'print': case 'log': return `msg!(${args})`;
+      case 'msg': case 'print': case 'log': return `log(${args})`;
       default: return `${callee}(${args})`;
     }
   }

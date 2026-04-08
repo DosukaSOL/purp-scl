@@ -66,7 +66,7 @@ test('rust: instruction generates function with account validation', () => {
   assert(r.rust!.includes('accounts') || r.rust!.includes('AccountView'), 'Should reference accounts');
 });
 
-test('rust: event generates #[event] struct', () => {
+test('rust: event generates BorshSerialize struct', () => {
   const r = compile(`
     program Test {
       event Transfer { from: pubkey, to: pubkey, amount: u64 }
@@ -76,7 +76,7 @@ test('rust: event generates #[event] struct', () => {
   assert(r.rust!.includes('Transfer'), 'Should have Transfer struct');
 });
 
-test('rust: error generates #[error_code] enum', () => {
+test('rust: error generates repr(u32) enum', () => {
   const r = compile(`
     program Test {
       error Errors {

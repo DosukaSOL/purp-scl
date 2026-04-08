@@ -62,7 +62,7 @@ pinocchio = "0.10"
 pinocchio-token = "0.5"
 pinocchio-system = "0.4"
 borsh = "0.10"
-solana-program-log = "1.0"
+pinocchio-log = "0.4"
 
 [profile.release]
 overflow-checks = true
