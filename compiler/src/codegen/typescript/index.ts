@@ -159,7 +159,7 @@ export class TypeScriptCodegen {
     this.emit('');
     this.emit("import React, { useState, useEffect, useCallback } from 'react';");
     this.emit("import { useConnection, useWallet } from '@solana/wallet-adapter-react';");
-    this.emit("import { PublicKey } from '@solana/web3.js';");
+    this.emit("import { PublicKey, Connection, Transaction, TransactionInstruction, Keypair } from '@solana/web3.js';");
     this.emit("import BN from 'bn.js';");
     this.emit('');
 
@@ -221,9 +221,9 @@ export class TypeScriptCodegen {
 
   private emitInstructionHook(node: AST.InstructionDeclaration): void {
     const hookName = `use${this.toPascalCase(node.name)}`;
-    const methodName = this.toCamelCase(node.name);
+    const instrIndex = this.instructions.indexOf(node);
 
-    this.emit(`export function ${hookName}(program: Program | null) {`);
+    this.emit(`export function ${hookName}(programId: PublicKey, connection: Connection) {`);
     this.indent++;
     this.emit('const [loading, setLoading] = useState(false);');
     this.emit('const [error, setError] = useState<string | null>(null);');
@@ -232,32 +232,52 @@ export class TypeScriptCodegen {
 
     const accountParams = node.accounts.map(a => `${this.toCamelCase(a.name)}: PublicKey`);
     const valueParams = node.params.map(p => `${this.toCamelCase(p.name)}: ${this.emitTypeStr(p.type)}`);
-    const allParams = [...accountParams, ...valueParams];
+    const signersParam = 'signers: Keypair[]';
+    const allParams = [...accountParams, ...valueParams, signersParam];
 
     this.emit(`const execute = useCallback(async (${allParams.join(', ')}) => {`);
     this.indent++;
-    this.emit('if (!program) return;');
     this.emit('setLoading(true);');
     this.emit('setError(null);');
     this.emit('try {');
     this.indent++;
 
-    this.emit('const accounts = {');
+    // Build Borsh-serialized data buffer
+    if (node.params.length > 0) {
+      this.emit('const params: Buffer[] = [];');
+      for (const p of node.params) {
+        this.emit(this.emitBorshSerialize(this.toCamelCase(p.name), p.type));
+      }
+      this.emit(`const data = Buffer.concat([Buffer.from([${instrIndex}]), ...params]);`);
+    } else {
+      this.emit(`const data = Buffer.from([${instrIndex}]);`);
+    }
+    this.emit('');
+
+    // Build keys array
+    this.emit('const ix = new TransactionInstruction({');
+    this.indent++;
+    this.emit('keys: [');
     this.indent++;
     for (const acc of node.accounts) {
-      this.emit(`${this.toCamelCase(acc.name)},`);
+      const isSigner = acc.accountType.kind === 'Signer';
+      const isWritable = acc.constraints.some(c => c.kind === 'mut' || c.kind === 'init') ||
+        acc.accountType.kind === 'Signer' && acc.constraints.some(c => c.kind === 'mut');
+      this.emit(`{ pubkey: ${this.toCamelCase(acc.name)}, isSigner: ${isSigner}, isWritable: ${isWritable} },`);
     }
     this.indent--;
-    this.emit('};');
-
-    const argNames = node.params.map(p => this.toCamelCase(p.name));
-    const argsStr = argNames.length > 0 ? argNames.join(', ') : '';
-
-    this.emit(`const sig = await program.methods.${methodName}(${argsStr})`);
-    this.indent++;
-    this.emit('.accounts(accounts)');
-    this.emit('.rpc();');
+    this.emit('],');
+    this.emit('programId,');
+    this.emit('data,');
     this.indent--;
+    this.emit('});');
+    this.emit('');
+    this.emit('const tx = new Transaction().add(ix);');
+    this.emit('tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;');
+    this.emit('tx.feePayer = signers[0].publicKey;');
+    this.emit('tx.sign(...signers);');
+    this.emit('const sig = await connection.sendRawTransaction(tx.serialize());');
+    this.emit('await connection.confirmTransaction(sig);');
     this.emit('setTxSignature(sig);');
     this.emit('return sig;');
 
@@ -272,7 +292,7 @@ export class TypeScriptCodegen {
     this.indent--;
     this.emit('}');
     this.indent--;
-    this.emit('}, [program]);');
+    this.emit('}, [programId, connection]);');
     this.emit('');
     this.emit('return { execute, loading, error, txSignature };');
     this.indent--;
@@ -283,18 +303,30 @@ export class TypeScriptCodegen {
   private emitAccountHook(acc: AST.AccountDeclaration): void {
     const hookName = `use${acc.name}`;
 
-    this.emit(`export function ${hookName}(program: Program | null, address: PublicKey | null) {`);
+    this.emit(`export function ${hookName}(connection: Connection, address: PublicKey | null) {`);
     this.indent++;
     this.emit(`const [data, setData] = useState<${acc.name} | null>(null);`);
     this.emit('const [loading, setLoading] = useState(false);');
     this.emit('');
     this.emit('useEffect(() => {');
     this.indent++;
-    this.emit('if (!program || !address) return;');
+    this.emit('if (!address) return;');
     this.emit('setLoading(true);');
-    this.emit(`(program.account as any).${this.toCamelCase(acc.name)}.fetch(address)`);
+    this.emit('connection.getAccountInfo(address)');
     this.indent++;
-    this.emit(`.then((acc: any) => setData(acc as ${acc.name}))`);
+    this.emit('.then((accountInfo) => {');
+    this.indent++;
+    this.emit('if (!accountInfo || accountInfo.data.length < 8) { setData(null); return; }');
+    this.emit('const data = accountInfo.data.slice(8);');
+    this.emit('let offset = 0;');
+    for (const field of acc.fields) {
+      const fName = this.toCamelCase(field.name);
+      this.emit(this.emitBorshDeserialize(fName, field.type));
+    }
+    const fieldNames = acc.fields.map(f => this.toCamelCase(f.name)).join(', ');
+    this.emit(`setData({ ${fieldNames} });`);
+    this.indent--;
+    this.emit('})');
     this.emit('.catch(() => setData(null))');
     this.emit('.finally(() => setLoading(false));');
     this.indent--;
@@ -522,7 +554,18 @@ export class TypeScriptCodegen {
         const args = expr.args.map(a => this.emitTSExprStr(a)).join(', ');
         return `${callee}(${args})`;
       }
-      case 'MemberExpr': return `${this.emitTSExprStr(expr.object)}.${this.toCamelCase(expr.property)}`;
+      case 'MemberExpr': {
+        // Clock sysvar: Clock.timestamp → Date.now() / 1000
+        if (expr.object.kind === 'IdentifierExpr' && (expr.object.name === 'Clock' || expr.object.name === 'clock')) {
+          const prop = expr.property.toLowerCase();
+          if (prop === 'timestamp' || prop === 'unix_timestamp' || prop === 'unixTimestamp') {
+            return 'Math.floor(Date.now() / 1000)';
+          }
+          if (prop === 'slot') return '(await this.connection.getSlot())';
+          if (prop === 'epoch') return '(await this.connection.getEpochInfo()).epoch';
+        }
+        return `${this.emitTSExprStr(expr.object)}.${this.toCamelCase(expr.property)}`;
+      }
       case 'OptionalChainExpr': return `${this.emitTSExprStr(expr.object)}?.${this.toCamelCase(expr.property)}`;
       case 'IndexExpr': return `${this.emitTSExprStr(expr.object)}[${this.emitTSExprStr(expr.index)}]`;
       case 'ArrayExpr': return `[${expr.elements.map(e => this.emitTSExprStr(e)).join(', ')}]`;

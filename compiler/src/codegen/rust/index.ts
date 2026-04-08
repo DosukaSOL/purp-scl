@@ -20,6 +20,8 @@ export class RustCodegen {
   private structs: Map<string, AST.StructDeclaration> = new Map();
   private enums: Map<string, AST.EnumDeclaration> = new Map();
   private pendingContextStructs: { name: string; accounts: AST.AccountParam[] }[] = [];
+  // Current instruction's account params — set during emitInstruction for context propagation
+  private currentAccounts: AST.AccountParam[] = [];
 
   generate(program: AST.ProgramNode): string {
     this.output = [];
@@ -285,6 +287,34 @@ export class RustCodegen {
       this.emit('');
     }
 
+    // 3b. PDA validation — derive expected address and verify
+    for (const acc of node.accounts) {
+      if (acc.accountType.kind === 'PDA') {
+        const pdaType = acc.accountType;
+        const name = this.toSnakeCase(acc.name);
+        const seedExprs = pdaType.seeds.map(s => {
+          const sExpr = this.emitExprStr(s);
+          // Wrap strings in .as_bytes(), leave byte arrays as-is
+          if (s.kind === 'StringLiteral') return `b"${s.value}"`;
+          if (s.kind === 'IdentifierExpr') return `${sExpr}.as_ref()`;
+          return `&${sExpr}.to_le_bytes()`;
+        });
+        const bumpVar = pdaType.bump ?? `${name}_bump`;
+        this.emit(`let (expected_${name}, ${bumpVar}) = pinocchio::pubkey::find_program_address(`);
+        this.indent++;
+        this.emit(`&[${seedExprs.join(', ')}],`);
+        this.emit('program_id,');
+        this.indent--;
+        this.emit(');');
+        this.emit(`if ${name}_info.key() != &expected_${name} {`);
+        this.indent++;
+        this.emit('return Err(ProgramError::InvalidSeeds);');
+        this.indent--;
+        this.emit('}');
+        this.emit('');
+      }
+    }
+
     // 4. Create signer key aliases (so `owner` resolves to Address, not AccountView)
     for (const acc of node.accounts) {
       if (acc.accountType.kind === 'Signer') {
@@ -318,7 +348,11 @@ export class RustCodegen {
     for (const acc of node.accounts) {
       if (acc.accountType.kind !== 'Signer' && acc.accountType.kind !== 'Program') {
         const typeName = acc.accountType.kind === 'Account' ? acc.accountType.type : null;
-        const accountDecl = typeName ? this.accounts.get(typeName) : null;
+        // Try direct type match first, then match by PascalCase param name
+        let accountDecl = typeName ? this.accounts.get(typeName) : null;
+        if (!accountDecl) {
+          accountDecl = this.accounts.get(this.toPascalCase(acc.name)) ?? null;
+        }
         if (accountDecl) {
           typedAccounts.push(acc);
           const name = this.toSnakeCase(acc.name);
@@ -336,7 +370,9 @@ export class RustCodegen {
     if (typedAccounts.length > 0) this.emit('');
 
     // 7. Emit instruction body
+    this.currentAccounts = node.accounts;
     this.emitStatements(node.body, node.accounts);
+    this.currentAccounts = [];
 
     // 8. Serialize modified typed accounts back
     for (const acc of typedAccounts) {
@@ -672,9 +708,10 @@ export class RustCodegen {
         break;
       case 'RequireStatement': {
         const errCode = stmt.errorCode ? this.emitExprStr(stmt.errorCode) : 'ProgramError::Custom(0)';
+        const needsInto = errCode.includes('::') && !errCode.startsWith('ProgramError::');
         this.emit(`if !(${this.emitExprStr(stmt.condition)}) {`);
         this.indent++;
-        this.emit(`return Err(${errCode});`);
+        this.emit(`return Err(${errCode}${needsInto ? '.into()' : ''});`);
         this.indent--;
         this.emit('}');
         break;
@@ -943,6 +980,8 @@ export class RustCodegen {
   // =========================================================================
 
   emitExprStr(expr: AST.Expression, accounts?: AST.AccountParam[]): string {
+    // Fall back to currentAccounts if no accounts explicitly passed
+    const accs = accounts ?? this.currentAccounts;
     switch (expr.kind) {
       case 'NumberLiteral':
         return expr.raw;
@@ -958,7 +997,7 @@ export class RustCodegen {
         return 'None';
       case 'IdentifierExpr': {
         // In Pinocchio, signer names resolve to their Address key
-        const signerAcc = accounts?.find(a =>
+        const signerAcc = accs?.find(a =>
           a.accountType.kind === 'Signer' && this.toSnakeCase(a.name) === this.toSnakeCase(expr.name)
         );
         if (signerAcc) {
@@ -973,7 +1012,7 @@ export class RustCodegen {
       case 'CallExpr':
         return this.emitCallExpr(expr);
       case 'MemberExpr':
-        return this.emitMemberExpr(expr, accounts);
+        return this.emitMemberExpr(expr, accs);
       case 'OptionalChainExpr':
         return `${this.emitExprStr(expr.object)}.as_ref().map(|v| v.${this.toSnakeCase(expr.property)})`;
       case 'IndexExpr':
@@ -1059,6 +1098,37 @@ export class RustCodegen {
   }
 
   private emitMemberExpr(expr: AST.MemberExpr, accounts?: AST.AccountParam[]): string {
+    // Check if this is an error enum access: ErrorName.Variant → ErrorName::Variant
+    if (expr.object.kind === 'IdentifierExpr') {
+      const objName = expr.object.name;
+
+      // Clock sysvar access: Clock.timestamp, Clock.slot, Clock.epoch, Clock.unix_timestamp
+      if (objName === 'Clock' || objName === 'clock') {
+        const prop = this.toSnakeCase(expr.property);
+        switch (prop) {
+          case 'timestamp': case 'unix_timestamp':
+            return 'Clock::get()?.unix_timestamp';
+          case 'slot':
+            return 'Clock::get()?.slot';
+          case 'epoch':
+            return 'Clock::get()?.epoch';
+          case 'leader_schedule_epoch':
+            return 'Clock::get()?.leader_schedule_epoch';
+          case 'epoch_start_timestamp':
+            return 'Clock::get()?.epoch_start_timestamp';
+        }
+      }
+
+      if (this.errors.has(objName) || this.errors.has(this.toPascalCase(objName))) {
+        const enumName = this.errors.has(objName) ? objName : this.toPascalCase(objName);
+        return `${enumName}::${this.toPascalCase(expr.property)}`;
+      }
+      // Check if this is a regular enum access
+      if (this.enums.has(objName) || this.enums.has(this.toPascalCase(objName))) {
+        const enumName = this.enums.has(objName) ? objName : this.toPascalCase(objName);
+        return `${enumName}::${this.toPascalCase(expr.property)}`;
+      }
+    }
     const obj = this.emitExprStr(expr.object, accounts);
     const prop = this.toSnakeCase(expr.property);
     return `${obj}.${prop}`;

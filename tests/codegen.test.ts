@@ -396,5 +396,139 @@ test('idl: includes enum types', () => {
   assert(idl.types[0].type.variants.length === 3, 'Should have 3 variants');
 });
 
+// --- E2E Rust Generation Validation ---
+
+test('e2e: full program generates valid Pinocchio Rust', () => {
+  const r = compile(`
+    program TokenVault {
+      account Vault {
+        owner: pubkey,
+        balance: u64,
+        is_locked: bool
+      }
+      error VaultErrors {
+        Unauthorized = "Not authorized",
+        InsufficientFunds = "Not enough funds"
+      }
+      event Deposit { user: pubkey, amount: u64 }
+      pub instruction initialize(
+        #[mut] signer authority,
+        #[init] account vault
+      ) {
+        vault.owner = authority;
+        vault.balance = 0;
+      }
+      pub instruction deposit(
+        #[mut] signer depositor,
+        #[mut] account vault,
+        amount: u64
+      ) {
+        assert(amount > 0, "Amount must be positive");
+        vault.balance = vault.balance + amount;
+        emit Deposit(depositor, amount);
+      }
+      pub instruction withdraw(
+        #[mut] signer owner_acc,
+        #[mut] account vault,
+        amount: u64
+      ) {
+        require(vault.balance >= amount, VaultErrors.InsufficientFunds);
+        vault.balance = vault.balance - amount;
+      }
+    }
+  `);
+  assert(r.success, 'Full program should compile');
+  const rust = r.rust!;
+  // Pinocchio imports
+  assert(rust.includes('use pinocchio::'), 'Should have pinocchio import');
+  assert(rust.includes('use pinocchio_log::log'), 'Should have pinocchio_log import');
+  assert(rust.includes('use borsh::'), 'Should have borsh import');
+  // Entrypoint
+  assert(rust.includes('entrypoint!(process_instruction)'), 'Should have entrypoint macro');
+  assert(rust.includes('fn process_instruction'), 'Should have process_instruction fn');
+  // Instruction dispatch
+  assert(rust.includes('match tag'), 'Should have instruction dispatch');
+  assert(rust.includes('0 => initialize'), 'Should dispatch initialize at index 0');
+  assert(rust.includes('1 => deposit'), 'Should dispatch deposit at index 1');
+  assert(rust.includes('2 => withdraw'), 'Should dispatch withdraw at index 2');
+  // Account deserialization
+  assert(rust.includes('Vault::default()'), 'Init account should use default()');
+  assert(rust.includes('Vault::try_from_slice'), 'Non-init account should deserialize');
+  // Signer key resolution
+  assert(rust.includes('authority_key'), 'Signer should have _key alias');
+  assert(rust.includes('vault.owner = authority_key'), 'Signer should resolve to _key in assignment');
+  // Error enum Rust syntax
+  assert(rust.includes('VaultErrors::InsufficientFunds'), 'Error variants should use :: syntax');
+  assert(rust.includes('.into()'), 'Error return should use .into()');
+  // Serialization
+  assert(rust.includes('vault.serialize'), 'Modified accounts should be serialized back');
+  assert(rust.includes('data_mut()'), 'Should use unsafe data_mut for write-back');
+  // Args deserialization
+  assert(rust.includes('DepositArgs'), 'Should generate args struct for params');
+  assert(rust.includes('BorshDeserialize'), 'Args struct should derive BorshDeserialize');
+  // Account struct
+  assert(rust.includes('pub struct Vault'), 'Should generate Vault struct');
+  assert(rust.includes('Default'), 'Account struct should derive Default');
+});
+
+test('e2e: full program generates valid TS SDK', () => {
+  const r = compile(`
+    program TokenVault {
+      account Vault { owner: pubkey, balance: u64 }
+      event Deposited { user: pubkey, amount: u64 }
+      pub instruction deposit(
+        #[mut] signer depositor,
+        #[mut] account vault,
+        amount: u64
+      ) {
+        vault.balance = vault.balance + amount;
+      }
+    }
+  `);
+  assert(r.success, 'Should compile');
+  const ts = r.typescript!;
+  assert(ts.includes('TransactionInstruction'), 'Should use TransactionInstruction');
+  assert(ts.includes('TokenVaultClient'), 'Should generate client class');
+  assert(ts.includes('async deposit'), 'Should have deposit method');
+  assert(ts.includes('signers: Keypair[]'), 'Should accept signers');
+  assert(ts.includes('Buffer.from(['), 'Should have discriminator byte');
+  assert(ts.includes('sendRawTransaction'), 'Should send raw transaction');
+  assert(ts.includes('interface Vault'), 'Should have Vault interface');
+  assert(ts.includes('connection.getAccountInfo'), 'Account fetcher should use getAccountInfo');
+  assert(ts.includes('onLogs'), 'Event listener should use onLogs');
+  assert(ts.includes('this.programId'), 'PDA helper should use this.programId');
+});
+
+test('rust: Clock.timestamp generates Clock::get()?.unix_timestamp', () => {
+  const r = compile(`
+    program TimeLock {
+      account Lock { unlock_time: u64 }
+      pub instruction create_lock(
+        #[mut] signer owner,
+        #[init] account lock,
+        duration: u64
+      ) {
+        lock.unlock_time = Clock.timestamp + duration;
+      }
+    }
+  `);
+  assert(r.success, 'Should compile with Clock access');
+  assert(r.rust!.includes('Clock::get()?.unix_timestamp'), 'Should generate Clock sysvar access');
+});
+
+test('rust: error enum uses :: syntax in require', () => {
+  const r = compile(`
+    program Test {
+      error Errors { Denied = "Denied" }
+      pub instruction check(#[mut] signer auth) {
+        require(auth == auth, Errors.Denied);
+      }
+    }
+  `);
+  assert(r.success, 'Should compile');
+  assert(r.rust!.includes('Errors::Denied'), 'Should generate Rust :: enum syntax');
+  assert(r.rust!.includes('.into()'), 'Should add .into() for custom error');
+});
+
 console.log(`\n  Results: ${passed} passed, ${failed} failed, ${passed + failed} total\n`);
 if (failed > 0) process.exit(1);

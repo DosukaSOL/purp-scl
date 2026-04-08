@@ -149,13 +149,26 @@ export async function deployCommand(args: string[]): Promise<void> {
   console.log('\x1b[32m✓\x1b[0m Build succeeded');
 
   // Step 6: Deploy with solana program deploy
-  const soPath = path.join(targetDir, 'target', 'deploy', '*.so');
-  const deployArgs = ['program', config.upgrade ? 'upgrade' : 'deploy'];
+  const deployDir = path.join(targetDir, 'target', 'deploy');
+  const programName = path.basename(process.cwd()).replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+  const soPath = path.join(deployDir, `${programName}.so`);
+
+  if (!fs.existsSync(soPath)) {
+    // Fallback: find any .so file in the deploy dir
+    const soFiles = fs.existsSync(deployDir) ? fs.readdirSync(deployDir).filter(f => f.endsWith('.so')) : [];
+    if (soFiles.length === 0) {
+      console.error('\x1b[31m✖ No .so file found in target/deploy/\x1b[0m');
+      process.exit(1);
+    }
+  }
+
+  const deployArgs = ['program', config.upgrade ? 'upgrade' : 'deploy', soPath];
 
   if (config.keypair) deployArgs.push('--keypair', config.keypair);
+  if (config.programId && config.upgrade) deployArgs.push(config.programId);
 
   console.log(`\x1b[36m⟡\x1b[0m Deploying to ${config.network}...`);
-  const deployResult = spawnSync('solana', [...deployArgs, soPath], { cwd: targetDir, stdio: 'inherit', shell: true });
+  const deployResult = spawnSync('solana', deployArgs, { cwd: targetDir, stdio: 'inherit' });
   if (deployResult.status !== 0) {
     console.error(`\x1b[31m✖ Deployment failed.\x1b[0m`);
     process.exit(1);
