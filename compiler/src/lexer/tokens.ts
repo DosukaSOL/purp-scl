@@ -161,6 +161,12 @@ export enum TokenType {
   Lamports = 'Lamports',
   Sol = 'Sol',
 
+  // State machine keywords
+  State = 'State',
+  Machine = 'Machine',
+  Transition = 'Transition',
+  Guard = 'Guard',
+
   // Special
   EOF = 'EOF',
   Newline = 'Newline',
@@ -254,6 +260,10 @@ export const KEYWORDS: Record<string, TokenType> = {
   'deploy': TokenType.Deploy,
   'test': TokenType.Test,
   'transaction': TokenType.Transaction,
+  'state': TokenType.State,
+  'machine': TokenType.Machine,
+  'transition': TokenType.Transition,
+  'guard': TokenType.Guard,
   'wallet': TokenType.Wallet,
   'lamports': TokenType.Lamports,
   'sol': TokenType.Sol,

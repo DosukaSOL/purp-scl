@@ -113,6 +113,9 @@ export class RustCodegen {
       case 'TestBlock':
         this.emitTestBlock(node);
         break;
+      case 'StateMachineDeclaration':
+        this.emitStateMachine(node);
+        break;
       case 'ImportDeclaration':
         // Imports handled in header
         break;
@@ -218,6 +221,9 @@ export class RustCodegen {
           break;
         case 'ErrorDeclaration':
           this.emitErrorDeclaration(child);
+          break;
+        case 'StateMachineDeclaration':
+          this.emitStateMachine(child);
           break;
       }
     }
@@ -596,6 +602,57 @@ export class RustCodegen {
     this.emitStatements(node.body);
     this.indent--;
     this.emit('}');
+    this.indent--;
+    this.emit('}');
+    this.emit('');
+  }
+
+  private emitStateMachine(node: AST.StateMachineDeclaration): void {
+    // Emit enum of states
+    this.emit('#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, PartialEq)]');
+    this.emit(`pub enum ${node.name} {`);
+    this.indent++;
+    for (const s of node.states) {
+      this.emit(`${s.name},`);
+    }
+    this.indent--;
+    this.emit('}');
+    this.emit('');
+
+    // Emit Default impl (first state is default)
+    if (node.states.length > 0) {
+      this.emit(`impl Default for ${node.name} {`);
+      this.indent++;
+      this.emit(`fn default() -> Self { ${node.name}::${node.states[0].name} }`);
+      this.indent--;
+      this.emit('}');
+      this.emit('');
+    }
+
+    // Emit transition methods
+    this.emit(`impl ${node.name} {`);
+    this.indent++;
+    for (const t of node.transitions) {
+      const fromPattern = t.from.map(f => `${node.name}::${f}`).join(' | ');
+      this.emit(`pub fn ${this.toSnakeCase(t.name)}(&self) -> Result<${node.name}, ProgramError> {`);
+      this.indent++;
+      this.emit(`match self {`);
+      this.indent++;
+      this.emit(`${fromPattern} => {`);
+      this.indent++;
+      if (t.guard) {
+        this.emitStatements(t.guard);
+      }
+      this.emit(`Ok(${node.name}::${t.to})`);
+      this.indent--;
+      this.emit('},');
+      this.emit(`_ => Err(ProgramError::InvalidArgument),`);
+      this.indent--;
+      this.emit('}');
+      this.indent--;
+      this.emit('}');
+      this.emit('');
+    }
     this.indent--;
     this.emit('}');
     this.emit('');

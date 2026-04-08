@@ -222,12 +222,18 @@ export async function publishCommand(args: string[]): Promise<void> {
 
   const config = readPurpToml();
   const dryRun = args.includes('--dry-run');
+  const tag = args.find(a => a.startsWith('--tag='))?.split('=')[1] ?? 'latest';
 
   console.log(`  Package: ${config.package.name}@${config.package.version}`);
+  console.log(`  Tag:     ${tag}`);
 
   // Validate
   if (!config.package.name) {
     console.error('\x1b[31m✖ Missing package name in Purp.toml\x1b[0m');
+    process.exit(1);
+  }
+  if (!config.package.version.match(/^\d+\.\d+\.\d+/)) {
+    console.error('\x1b[31m✖ Invalid version format in Purp.toml (expected semver)\x1b[0m');
     process.exit(1);
   }
 
@@ -238,11 +244,120 @@ export async function publishCommand(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  const purpFiles = findPurpFilesRec(srcDir);
+  if (purpFiles.length === 0) {
+    console.error('\x1b[31m✖ No .purp files found in src/\x1b[0m');
+    process.exit(1);
+  }
+  console.log(`  Files:   ${purpFiles.length} .purp file(s)`);
+
+  // Check for auth token
+  const tokenPath = path.join(process.env['HOME'] ?? '~', '.purp', 'auth-token');
+  const hasToken = fs.existsSync(tokenPath);
+
+  // Build package manifest
+  const manifest = {
+    name: config.package.name,
+    version: config.package.version,
+    description: config.package.description ?? '',
+    dependencies: config.dependencies,
+    files: purpFiles.map(f => path.relative(process.cwd(), f)),
+    tag,
+    publishedAt: new Date().toISOString(),
+  };
+
+  // Create tarball directory
+  const packDir = path.join(process.cwd(), '.purp-pack');
+  if (!fs.existsSync(packDir)) fs.mkdirSync(packDir, { recursive: true });
+
+  // Write manifest
+  const manifestPath = path.join(packDir, 'package.json');
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+  // Copy source files
+  for (const file of purpFiles) {
+    const rel = path.relative(process.cwd(), file);
+    const dest = path.join(packDir, rel);
+    const destDir = path.dirname(dest);
+    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+    fs.copyFileSync(file, dest);
+  }
+
+  // Copy Purp.toml
+  const tomlSrc = path.join(process.cwd(), 'Purp.toml');
+  if (fs.existsSync(tomlSrc)) fs.copyFileSync(tomlSrc, path.join(packDir, 'Purp.toml'));
+
+  // Create tarball
+  const tarball = `${config.package.name.replace('/', '-')}-${config.package.version}.tgz`;
+  const tarballPath = path.join(process.cwd(), tarball);
+  try {
+    execSync(`tar -czf "${tarballPath}" -C "${packDir}" .`, { stdio: 'pipe' });
+    console.log(`  Tarball: ${tarball} (${(fs.statSync(tarballPath).size / 1024).toFixed(1)}KB)`);
+  } catch {
+    console.error('\x1b[31m✖ Failed to create tarball\x1b[0m');
+    process.exit(1);
+  }
+
+  // Clean up pack dir
+  fs.rmSync(packDir, { recursive: true, force: true });
+
   if (dryRun) {
-    console.log('  \x1b[33m⟡\x1b[0m Dry run — package would be published to registry');
+    console.log('');
+    console.log('  \x1b[33m⟡\x1b[0m Dry run — package tarball created but not published');
+    console.log(`  Tarball saved at: ${tarballPath}`);
     return;
   }
 
+  if (!hasToken) {
+    console.error('');
+    console.error('\x1b[31m✖ Not authenticated. Run `purp login` first or create ~/.purp/auth-token\x1b[0m');
+    // Clean up tarball
+    if (fs.existsSync(tarballPath)) fs.unlinkSync(tarballPath);
+    process.exit(1);
+  }
+
+  // Publish to registry
+  const token = fs.readFileSync(tokenPath, 'utf-8').trim();
   console.log(`  Publishing to ${PURP_REGISTRY_URL}...`);
-  console.log(`\x1b[32m✓\x1b[0m Published ${config.package.name}@${config.package.version}`);
+  try {
+    const response = await fetch(`${PURP_REGISTRY_URL}/api/v1/packages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/octet-stream',
+        'X-Package-Name': config.package.name,
+        'X-Package-Version': config.package.version,
+        'X-Package-Tag': tag,
+      },
+      body: fs.readFileSync(tarballPath),
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error(`\x1b[31m✖ Publish failed: ${response.status} ${err}\x1b[0m`);
+      process.exit(1);
+    }
+    console.log('');
+    console.log(`\x1b[32m✓\x1b[0m Published ${config.package.name}@${config.package.version}`);
+  } catch (err: any) {
+    console.error(`\x1b[31m✖ Publish failed: ${err.message}\x1b[0m`);
+    process.exit(1);
+  } finally {
+    // Clean up tarball
+    if (fs.existsSync(tarballPath)) fs.unlinkSync(tarballPath);
+  }
+}
+
+function findPurpFilesRec(dir: string): string[] {
+  const results: string[] = [];
+  if (!fs.existsSync(dir)) return results;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+      results.push(...findPurpFilesRec(full));
+    } else if (entry.isFile() && entry.name.endsWith('.purp')) {
+      results.push(full);
+    }
+  }
+  return results;
 }

@@ -23,6 +23,7 @@ export class TypeScriptCodegen {
   private configBlocks: AST.ConfigBlock[] = [];
   private consts: AST.ConstDeclaration[] = [];
   private functions: AST.FunctionDeclaration[] = [];
+  private stateMachines: AST.StateMachineDeclaration[] = [];
 
   generate(program: AST.ProgramNode): string {
     this.output = [];
@@ -33,6 +34,7 @@ export class TypeScriptCodegen {
     this.emitClientBlocks();
     this.emitEventTypes();
     this.emitErrorTypes();
+    this.emitStateMachineTypes();
     this.emitHelperFunctions();
     this.emitFrontendBlocks();
     return this.output.join('\n');
@@ -89,6 +91,9 @@ export class TypeScriptCodegen {
           break;
         case 'FunctionDeclaration':
           this.functions.push(node);
+          break;
+        case 'StateMachineDeclaration':
+          this.stateMachines.push(node);
           break;
       }
     }
@@ -1091,6 +1096,49 @@ export class TypeScriptCodegen {
       this.indent--;
       this.emit('}');
       this.emit('return null;');
+      this.indent--;
+      this.emit('}');
+      this.emit('');
+    }
+  }
+
+  private emitStateMachineTypes(): void {
+    if (this.stateMachines.length === 0) return;
+
+    this.emit('// ═══════════════════════════════════════════════════════');
+    this.emit('// State Machines');
+    this.emit('// ═══════════════════════════════════════════════════════');
+    this.emit('');
+
+    for (const sm of this.stateMachines) {
+      // Enum of states
+      this.emit(`export enum ${sm.name} {`);
+      this.indent++;
+      sm.states.forEach((s, i) => {
+        this.emit(`${s.name} = ${i},`);
+      });
+      this.indent--;
+      this.emit('}');
+      this.emit('');
+
+      // Valid transitions map
+      this.emit(`export const ${sm.name}Transitions: Record<string, { from: ${sm.name}[]; to: ${sm.name} }> = {`);
+      this.indent++;
+      for (const t of sm.transitions) {
+        const fromArr = t.from.map(f => `${sm.name}.${f}`).join(', ');
+        this.emit(`${t.name}: { from: [${fromArr}], to: ${sm.name}.${t.to} },`);
+      }
+      this.indent--;
+      this.emit('};');
+      this.emit('');
+
+      // Transition helper
+      this.emit(`export function transition${sm.name}(current: ${sm.name}, action: string): ${sm.name} {`);
+      this.indent++;
+      this.emit(`const t = ${sm.name}Transitions[action];`);
+      this.emit('if (!t) throw new Error(`Invalid transition: ${action}`);');
+      this.emit('if (!t.from.includes(current)) throw new Error(`Cannot ${action} from state ${current}`);');
+      this.emit('return t.to;');
       this.indent--;
       this.emit('}');
       this.emit('');

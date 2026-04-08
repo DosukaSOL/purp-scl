@@ -207,5 +207,37 @@ test('account-naming: PascalCase account names', () => {
   assert(namingWarning, 'Should warn about non-PascalCase account name');
 });
 
+test('missing-return: warns when function has return type but no return', () => {
+  const ast = parse(`
+    program Test {
+      fn compute() -> u64 {
+        let x = 42;
+      }
+    }
+  `);
+  const result = lintPurpAST(ast);
+  const allDiags = result.diagnostics.getAll();
+  const hasWarning = allDiags.some(d => d.description.includes('return'));
+  assert(hasWarning, 'Should warn about missing return statement');
+});
+
+test('state-unreachable: warns about unreachable states', () => {
+  const ast = parse(`
+    program Test {
+      state machine Flow {
+        state Active
+        state Done
+        state Orphan
+
+        transition finish: Active -> Done
+      }
+    }
+  `);
+  const result = lintPurpAST(ast);
+  const allDiags = result.diagnostics.getAll();
+  const hasWarning = allDiags.some(d => d.description.includes('Orphan') && d.description.includes('unreachable'));
+  assert(hasWarning, 'Should warn about unreachable Orphan state');
+});
+
 console.log(`\n  Results: ${passed} passed, ${failed} failed, ${passed + failed} total\n`);
 if (failed > 0) process.exit(1);

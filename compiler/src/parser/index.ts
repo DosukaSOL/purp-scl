@@ -12,6 +12,8 @@ export class Parser {
   private tokens: Token[];
   private pos: number = 0;
   private file: string;
+  private errors: PurpError[] = [];
+  private panicMode: boolean = false;
 
   constructor(tokens: Token[], file: string = '<stdin>') {
     this.tokens = tokens.filter(t =>
@@ -22,11 +24,33 @@ export class Parser {
     this.file = file;
   }
 
+  /** Get all collected parse errors (available after parse()). */
+  getErrors(): PurpError[] {
+    return this.errors;
+  }
+
   parse(): AST.ProgramNode {
     const body: AST.TopLevelNode[] = [];
     while (!this.isAtEnd()) {
-      const node = this.parseTopLevel();
-      if (node) body.push(node);
+      try {
+        this.panicMode = false;
+        const node = this.parseTopLevel();
+        if (node) body.push(node);
+      } catch (err) {
+        if (err instanceof PurpError) {
+          this.errors.push(err);
+          this.synchronize();
+          // Bail out after too many errors to prevent OOM
+          if (this.errors.length >= 50) break;
+        } else {
+          throw err;
+        }
+      }
+    }
+    // If errors were collected, throw the first one for backward compat
+    // (callers that don't use getErrors() still get an error)
+    if (this.errors.length > 0 && body.length === 0) {
+      throw this.errors[0];
     }
     return {
       kind: 'Program',
@@ -67,6 +91,7 @@ export class Parser {
       case TokenType.Frontend: return this.parseFrontendBlock();
       case TokenType.Config: return this.parseConfigBlock();
       case TokenType.Test: return this.parseTestBlock();
+      case TokenType.State: return this.parseStateMachine();
       case TokenType.Pub: {
         this.advance();
         const next = this.currentToken();
@@ -751,6 +776,71 @@ export class Parser {
       name,
       body,
       isAsync,
+      span: { start: start.span.start, end: this.prevToken().span.end },
+    };
+  }
+
+  // state machine Name { state X  state Y  transition t: X -> Y { guard { ... } } }
+  private parseStateMachine(): AST.StateMachineDeclaration {
+    const start = this.expect(TokenType.State);
+    this.expect(TokenType.Machine);
+    const name = this.expectName().value;
+    this.expect(TokenType.LeftBrace);
+
+    const states: AST.StateDef[] = [];
+    const transitions: AST.TransitionDef[] = [];
+
+    while (!this.check(TokenType.RightBrace) && !this.isAtEnd()) {
+      if (this.check(TokenType.State)) {
+        const sStart = this.advance();
+        const sName = this.expectName().value;
+        states.push({
+          kind: 'StateDef',
+          name: sName,
+          span: { start: sStart.span.start, end: this.prevToken().span.end },
+        });
+      } else if (this.check(TokenType.Transition)) {
+        const tStart = this.advance();
+        const tName = this.expectName().value;
+        this.expect(TokenType.Colon);
+        // Parse from states: A | B | C
+        const from: string[] = [this.expectName().value];
+        while (this.match(TokenType.Pipe)) {
+          from.push(this.expectName().value);
+        }
+        // ->
+        this.expect(TokenType.Arrow);
+        const to = this.expectName().value;
+
+        let guard: AST.Statement[] | undefined;
+        if (this.check(TokenType.LeftBrace)) {
+          this.advance(); // {
+          if (this.check(TokenType.Guard)) {
+            this.advance(); // guard
+            guard = this.parseBlock();
+          }
+          this.expect(TokenType.RightBrace);
+        }
+
+        transitions.push({
+          kind: 'TransitionDef',
+          name: tName,
+          from,
+          to,
+          guard,
+          span: { start: tStart.span.start, end: this.prevToken().span.end },
+        });
+      } else {
+        throw this.error(`Expected 'state' or 'transition' in state machine, got ${this.currentToken().type}`, this.currentToken());
+      }
+    }
+
+    this.expect(TokenType.RightBrace);
+    return {
+      kind: 'StateMachineDeclaration',
+      name,
+      states,
+      transitions,
       span: { start: start.span.start, end: this.prevToken().span.end },
     };
   }
@@ -2153,6 +2243,39 @@ export class Parser {
       token.span.start,
       this.file,
     );
+  }
+
+  /**
+   * Panic-mode error recovery: skip tokens until we find a synchronization
+   * point — either a semicolon, a closing brace, or a keyword that can
+   * start a new top-level declaration.
+   */
+  private synchronize(): void {
+    this.panicMode = true;
+    // Always advance at least one token to guarantee forward progress
+    if (!this.isAtEnd()) this.advance();
+
+    const syncTokens = new Set([
+      TokenType.Program, TokenType.Instruction, TokenType.Account,
+      TokenType.Struct, TokenType.Enum, TokenType.Fn, TokenType.Pub,
+      TokenType.Event, TokenType.Error, TokenType.Import, TokenType.Use,
+      TokenType.Const, TokenType.Type, TokenType.Impl, TokenType.Trait,
+      TokenType.Client, TokenType.Frontend, TokenType.Config, TokenType.Test,
+      TokenType.State, TokenType.Async,
+    ]);
+
+    while (!this.isAtEnd()) {
+      // If previous token was ; or }, we're at a statement boundary
+      const prev = this.tokens[this.pos - 1];
+      if (prev && (prev.type === TokenType.Semicolon || prev.type === TokenType.RightBrace)) {
+        return;
+      }
+      // If current token starts a new declaration, stop here
+      if (syncTokens.has(this.currentToken().type)) {
+        return;
+      }
+      this.advance();
+    }
   }
 }
 

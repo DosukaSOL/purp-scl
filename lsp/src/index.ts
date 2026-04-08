@@ -124,6 +124,27 @@ export class PurpLanguageServer {
   // Get completions at a position
   getCompletions(uri: string, position: Position): CompletionItem[] {
     const items: CompletionItem[] = [];
+    const content = this.documents.get(uri);
+    const ast = this.asts.get(uri);
+
+    // Context detection: look at text before cursor
+    const line = content?.split('\n')[position.line] ?? '';
+    const textBefore = line.slice(0, position.character);
+
+    // After a dot — suggest fields of the type
+    if (textBefore.match(/(\w+)\.\s*$/) && ast) {
+      const objName = textBefore.match(/(\w+)\.\s*$/)![1];
+      return this.getFieldCompletions(uri, objName);
+    }
+
+    // After #[ — suggest constraints
+    if (textBefore.match(/#\[\s*$/)) {
+      const constraints = ['init', 'mut', 'seeds', 'bump', 'has_one', 'constraint', 'close', 'payer', 'space'];
+      for (const c of constraints) {
+        items.push({ label: c, kind: CompletionItemKind.Keyword, detail: `Account constraint` });
+      }
+      return items;
+    }
 
     // Keywords
     const keywords = [
@@ -133,6 +154,7 @@ export class PurpLanguageServer {
       'trait', 'impl', 'type', 'async', 'await', 'try', 'catch', 'throw',
       'assert', 'require', 'test', 'signer', 'init', 'pda', 'cpi', 'transfer',
       'mint_to', 'burn', 'close_account', 'seeds', 'bump', 'payer', 'space',
+      'state', 'machine', 'transition', 'guard',
     ];
 
     for (const kw of keywords) {
@@ -179,8 +201,90 @@ export class PurpLanguageServer {
       detail: 'Create a program',
       insertText: 'program ${1:Name} {\n  $0\n}',
     });
+    items.push({
+      label: 'state machine',
+      kind: CompletionItemKind.Snippet,
+      detail: 'Create a state machine',
+      insertText: 'state machine ${1:Name} {\n  state ${2:Initial}\n  state ${3:Final}\n\n  transition ${4:action}: ${2} -> ${3}\n}',
+    });
 
     return items;
+  }
+
+  // Get field completions for a type
+  private getFieldCompletions(uri: string, objectName: string): CompletionItem[] {
+    const items: CompletionItem[] = [];
+    const ast = this.asts.get(uri);
+    if (!ast) return items;
+
+    // Find the account or struct that matches
+    const findDecl = (nodes: AST.TopLevelNode[]): void => {
+      for (const node of nodes) {
+        if (node.kind === 'ProgramDeclaration') {
+          findDecl(node.body);
+        }
+        // Match by name (PascalCase) or lowercase name
+        const targetName = objectName.charAt(0).toUpperCase() + objectName.slice(1);
+        if (node.kind === 'AccountDeclaration' && (node.name === targetName || node.name === objectName)) {
+          for (const field of node.fields) {
+            items.push({
+              label: field.name,
+              kind: CompletionItemKind.Field,
+              detail: this.typeToString(field.type),
+            });
+          }
+        }
+        if (node.kind === 'StructDeclaration' && (node.name === targetName || node.name === objectName)) {
+          for (const field of node.fields) {
+            items.push({
+              label: field.name,
+              kind: CompletionItemKind.Field,
+              detail: this.typeToString(field.type),
+            });
+          }
+        }
+        if (node.kind === 'EnumDeclaration' && (node.name === targetName || node.name === objectName)) {
+          for (const variant of node.variants) {
+            items.push({
+              label: variant.name,
+              kind: CompletionItemKind.Enum,
+              detail: 'enum variant',
+            });
+          }
+        }
+        if (node.kind === 'ErrorDeclaration' && (node.name === targetName || node.name === objectName)) {
+          for (const variant of node.variants) {
+            items.push({
+              label: variant.name,
+              kind: CompletionItemKind.Enum,
+              detail: `error (code ${variant.code}): ${variant.message}`,
+            });
+          }
+        }
+      }
+    };
+    findDecl(ast.body);
+
+    // Built-in member completions
+    if (objectName === 'Clock') {
+      items.push({ label: 'timestamp', kind: CompletionItemKind.Field, detail: 'i64 — Current Unix timestamp' });
+      items.push({ label: 'slot', kind: CompletionItemKind.Field, detail: 'u64 — Current slot' });
+      items.push({ label: 'epoch', kind: CompletionItemKind.Field, detail: 'u64 — Current epoch' });
+    }
+
+    return items;
+  }
+
+  private typeToString(type: AST.TypeAnnotation): string {
+    switch (type.kind) {
+      case 'PrimitiveType': return type.name;
+      case 'NamedType': return type.typeArgs ? `${type.name}<${type.typeArgs.map(t => this.typeToString(t)).join(', ')}>` : type.name;
+      case 'ArrayType': return type.size ? `[${this.typeToString(type.element)}; ${type.size}]` : `Vec<${this.typeToString(type.element)}>`;
+      case 'OptionType': return `Option<${this.typeToString(type.inner)}>`;
+      case 'ResultType': return `Result<${this.typeToString(type.ok)}, ${this.typeToString(type.err)}>`;
+      case 'TupleType': return `(${type.elements.map(t => this.typeToString(t)).join(', ')})`;
+      default: return 'unknown';
+    }
   }
 
   // Get hover info at a position
@@ -190,6 +294,13 @@ export class PurpLanguageServer {
 
     const word = this.getWordAtPosition(content, position);
     if (!word) return null;
+
+    // Check for rich symbol info from AST
+    const ast = this.asts.get(uri);
+    if (ast) {
+      const rich = this.getRichHover(ast, word);
+      if (rich) return rich;
+    }
 
     // Check symbols
     const docSymbols = this.symbols.get(uri) ?? [];
@@ -243,6 +354,61 @@ export class PurpLanguageServer {
     }
 
     return null;
+  }
+
+  // Rich hover from AST declarations
+  private getRichHover(ast: AST.ProgramNode, word: string): HoverResult | null {
+    const search = (nodes: AST.TopLevelNode[]): HoverResult | null => {
+      for (const node of nodes) {
+        if (node.kind === 'ProgramDeclaration') {
+          if (node.name === word) return { contents: `**program ${node.name}**\n\n${node.body.length} members` };
+          const inner = search(node.body);
+          if (inner) return inner;
+        }
+        if (node.kind === 'InstructionDeclaration' && node.name === word) {
+          const accs = node.accounts.map(a => `  ${a.accountType.kind} ${a.name}`).join('\n');
+          const params = node.params.map(p => `${p.name}: ${this.typeToString(p.type)}`).join(', ');
+          return { contents: `**instruction ${node.name}**(${params})\n\n**Accounts:**\n\`\`\`\n${accs}\n\`\`\`` };
+        }
+        if (node.kind === 'AccountDeclaration' && node.name === word) {
+          const fields = node.fields.map(f => `  ${f.name}: ${this.typeToString(f.type)}`).join('\n');
+          return { contents: `**account ${node.name}**\n\`\`\`\n${fields}\n\`\`\`` };
+        }
+        if (node.kind === 'StructDeclaration' && node.name === word) {
+          const fields = node.fields.map(f => `  ${f.name}: ${this.typeToString(f.type)}`).join('\n');
+          const gen = node.genericParams?.map(g => g.name).join(', ');
+          return { contents: `**struct ${node.name}${gen ? `<${gen}>` : ''}**\n\`\`\`\n${fields}\n\`\`\`` };
+        }
+        if (node.kind === 'EnumDeclaration' && node.name === word) {
+          const variants = node.variants.map(v => `  ${v.name}${v.fields ? ` { ${v.fields.map(f => `${f.name}: ${this.typeToString(f.type)}`).join(', ')} }` : ''}`).join('\n');
+          return { contents: `**enum ${node.name}**\n\`\`\`\n${variants}\n\`\`\`` };
+        }
+        if (node.kind === 'ErrorDeclaration' && node.name === word) {
+          const variants = node.variants.map(v => `  ${v.name} = ${v.code} — "${v.message}"`).join('\n');
+          return { contents: `**error ${node.name}**\n\`\`\`\n${variants}\n\`\`\`` };
+        }
+        if (node.kind === 'FunctionDeclaration' && node.name === word) {
+          const params = node.params.map(p => `${p.name}: ${this.typeToString(p.type)}`).join(', ');
+          const ret = node.returnType ? ` -> ${this.typeToString(node.returnType)}` : '';
+          return { contents: `**fn ${node.name}**(${params})${ret}` };
+        }
+        if (node.kind === 'EventDeclaration' && node.name === word) {
+          const fields = node.fields.map(f => `  ${f.name}: ${this.typeToString(f.type)}`).join('\n');
+          return { contents: `**event ${node.name}**\n\`\`\`\n${fields}\n\`\`\`` };
+        }
+        if (node.kind === 'TraitDeclaration' && node.name === word) {
+          const methods = node.methods.map(m => `  fn ${m.name}(${m.params.map(p => p.name).join(', ')})`).join('\n');
+          return { contents: `**trait ${node.name}**\n\`\`\`\n${methods}\n\`\`\`` };
+        }
+        if (node.kind === 'StateMachineDeclaration' && node.name === word) {
+          const states = node.states.map(s => s.name).join(', ');
+          const trans = node.transitions.map(t => `  ${t.name}: ${t.from.join(' | ')} → ${t.to}`).join('\n');
+          return { contents: `**state machine ${node.name}**\n\nStates: ${states}\n\`\`\`\n${trans}\n\`\`\`` };
+        }
+      }
+      return null;
+    };
+    return search(ast.body);
   }
 
   // Get definition location
@@ -394,6 +560,15 @@ export class PurpLanguageServer {
             column: node.span.start.column - 1,
           });
         }
+        break;
+      case 'StateMachineDeclaration':
+        symbols.push({
+          name: node.name,
+          symbolKind: CompletionItemKind.Enum,
+          detail: `state machine (${node.states.length} states, ${node.transitions.length} transitions)`,
+          line: node.span.start.line - 1,
+          column: node.span.start.column - 1,
+        });
         break;
     }
   }

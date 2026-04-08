@@ -51,7 +51,8 @@ export type TopLevelNode =
   | ClientBlock
   | FrontendBlock
   | ConfigBlock
-  | TestBlock;
+  | TestBlock
+  | StateMachineDeclaration;
 
 // --- Program Declaration ---
 export interface ProgramDeclaration extends BaseNode {
@@ -265,6 +266,27 @@ export interface TestBlock extends BaseNode {
   name: string;
   body: Statement[];
   isAsync: boolean;
+}
+
+// --- State Machine ---
+export interface StateMachineDeclaration extends BaseNode {
+  kind: 'StateMachineDeclaration';
+  name: string;
+  states: StateDef[];
+  transitions: TransitionDef[];
+}
+
+export interface StateDef extends BaseNode {
+  kind: 'StateDef';
+  name: string;
+}
+
+export interface TransitionDef extends BaseNode {
+  kind: 'TransitionDef';
+  name: string;
+  from: string[];
+  to: string;
+  guard?: Statement[];
 }
 
 // ============================================================================
@@ -777,4 +799,7 @@ export type ASTNode =
   | Pattern
   | GenericParam
   | Attribute
-  | TestBlock;
+  | TestBlock
+  | StateMachineDeclaration
+  | StateDef
+  | TransitionDef;

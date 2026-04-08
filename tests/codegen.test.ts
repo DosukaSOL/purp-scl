@@ -1,6 +1,8 @@
 // Purp SCL — Codegen Tests (Rust + TypeScript extended coverage)
 
 import { compile } from '../compiler/src/index.js';
+import { Parser } from '../compiler/src/parser/index.js';
+import { Lexer } from '../compiler/src/lexer/index.js';
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(`ASSERTION FAILED: ${message}`);
@@ -528,6 +530,84 @@ test('rust: error enum uses :: syntax in require', () => {
   assert(r.success, 'Should compile');
   assert(r.rust!.includes('Errors::Denied'), 'Should generate Rust :: enum syntax');
   assert(r.rust!.includes('.into()'), 'Should add .into() for custom error');
+});
+
+// --- State Machine DSL ---
+
+test('rust: state machine generates enum + transitions', () => {
+  const r = compile(`
+    program Game {
+      state machine GameState {
+        state Lobby
+        state Playing
+        state Finished
+
+        transition start: Lobby -> Playing
+        transition finish: Playing -> Finished
+        transition restart: Finished -> Lobby
+      }
+    }
+  `);
+  assert(r.success, 'State machine should compile');
+  const rust = r.rust!;
+  assert(rust.includes('pub enum GameState'), 'Should generate state enum');
+  assert(rust.includes('Lobby,'), 'Should have Lobby variant');
+  assert(rust.includes('Playing,'), 'Should have Playing variant');
+  assert(rust.includes('Finished,'), 'Should have Finished variant');
+  assert(rust.includes('impl GameState'), 'Should generate impl block');
+  assert(rust.includes('fn start(&self)'), 'Should generate start transition');
+  assert(rust.includes('fn finish(&self)'), 'Should generate finish transition');
+  assert(rust.includes('GameState::Lobby =>'), 'Should match from state');
+  assert(rust.includes('Ok(GameState::Playing)'), 'Should return to state');
+  assert(rust.includes('ProgramError::InvalidArgument'), 'Should have invalid transition error');
+  assert(rust.includes('Default'), 'Should derive Default');
+});
+
+test('ts: state machine generates enum + transition map', () => {
+  const r = compile(`
+    program Game {
+      state machine GameState {
+        state Lobby
+        state Playing
+        state Finished
+        transition start: Lobby -> Playing
+        transition finish: Playing -> Finished
+      }
+    }
+  `);
+  assert(r.success, 'Should compile');
+  const ts = r.typescript!;
+  assert(ts.includes('export enum GameState'), 'Should generate TS enum');
+  assert(ts.includes('Lobby = 0'), 'First state should be 0');
+  assert(ts.includes('GameStateTransitions'), 'Should generate transitions map');
+  assert(ts.includes('transitionGameState'), 'Should generate transition helper');
+});
+
+test('rust: multi-source transition uses OR pattern', () => {
+  const r = compile(`
+    program Order {
+      state machine OrderStatus {
+        state Pending
+        state Active
+        state Cancelled
+        transition cancel: Pending | Active -> Cancelled
+      }
+    }
+  `);
+  assert(r.success, 'Should compile');
+  assert(r.rust!.includes('OrderStatus::Pending | OrderStatus::Active'), 'Should use | pattern for multi-source');
+});
+
+// --- Parser Error Recovery ---
+
+test('parser: collects multiple errors', () => {
+  const tokens = new Lexer('@@@ ??? program Test {}', 'test').tokenize();
+  const parser = new Parser(tokens, 'test');
+  const ast = parser.parse();
+  // Should recover and parse the program declaration
+  const errors = parser.getErrors();
+  assert(errors.length > 0, 'Should have collected errors');
+  assert(ast.body.length >= 1, 'Should still parse valid program after recovery');
 });
 
 console.log(`\n  Results: ${passed} passed, ${failed} failed, ${passed + failed} total\n`);

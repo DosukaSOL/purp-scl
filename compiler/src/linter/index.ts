@@ -307,6 +307,84 @@ export class PurpLinter {
         }
       },
     });
+
+    // Rule: unused-variable (let declarations not referenced in body)
+    this.addRule({
+      name: 'unused-variable',
+      severity: 'warning',
+      check: (node, ctx) => {
+        if (node.kind === 'FunctionDeclaration') {
+          const fn = node as AST.FunctionDeclaration;
+          const bodyStr = JSON.stringify(fn.body);
+          for (const stmt of fn.body) {
+            if (stmt.kind === 'LetStatement' && stmt.name) {
+              // Check if the variable name appears anywhere else in the body
+              const nameCount = (bodyStr.match(new RegExp(`"${stmt.name}"`, 'g')) || []).length;
+              // nameCount = 1 means it only appears in the let declaration itself
+              if (nameCount <= 1) {
+                ctx.diagnostics.warning(
+                  ErrorCode.ParseError,
+                  `Variable '${stmt.name}' is declared but never used`,
+                  stmt.span.start, ctx.file,
+                  'Remove the unused variable or prefix with _',
+                );
+              }
+            }
+          }
+        }
+      },
+    });
+
+    // Rule: missing-return (function with return type but no return statement)
+    this.addRule({
+      name: 'missing-return',
+      severity: 'warning',
+      check: (node, ctx) => {
+        if (node.kind === 'FunctionDeclaration') {
+          const fn = node as AST.FunctionDeclaration;
+          if (fn.returnType && fn.body.length > 0) {
+            const hasReturn = JSON.stringify(fn.body).includes('"ReturnStatement"');
+            if (!hasReturn) {
+              ctx.diagnostics.warning(
+                ErrorCode.ParseError,
+                `Function '${fn.name}' has return type but no return statement`,
+                fn.span.start, ctx.file,
+                'Add a return statement or remove the return type',
+              );
+            }
+          }
+        }
+      },
+    });
+
+    // Rule: state-unreachable (state never appears as a transition target)
+    this.addRule({
+      name: 'state-unreachable',
+      severity: 'warning',
+      check: (node, ctx) => {
+        if (node.kind === 'StateMachineDeclaration') {
+          const sm = node as AST.StateMachineDeclaration;
+          const reachable = new Set<string>();
+          // First state is always reachable (default)
+          if (sm.states.length > 0) reachable.add(sm.states[0].name);
+          // All transition sources and targets are reachable
+          for (const t of sm.transitions) {
+            for (const f of t.from) reachable.add(f);
+            reachable.add(t.to);
+          }
+          for (const s of sm.states) {
+            if (!reachable.has(s.name)) {
+              ctx.diagnostics.warning(
+                ErrorCode.ParseError,
+                `State '${s.name}' in '${sm.name}' is unreachable — no transition leads to or from it`,
+                s.span.start, ctx.file,
+                'Remove the unreachable state or add a transition',
+              );
+            }
+          }
+        }
+      },
+    });
   }
 
   private walkProgram(program: AST.ProgramNode, ctx: LintContext): void {
@@ -358,6 +436,21 @@ export class PurpLinter {
     }
     if ('fields' in node && Array.isArray((node as any).fields)) {
       for (const child of (node as any).fields) {
+        if (child && typeof child === 'object' && 'kind' in child) {
+          this.walkNode(child, ctx);
+        }
+      }
+    }
+    // Walk state machine children
+    if ('states' in node && Array.isArray((node as any).states)) {
+      for (const child of (node as any).states) {
+        if (child && typeof child === 'object' && 'kind' in child) {
+          this.walkNode(child, ctx);
+        }
+      }
+    }
+    if ('transitions' in node && Array.isArray((node as any).transitions)) {
+      for (const child of (node as any).transitions) {
         if (child && typeof child === 'object' && 'kind' in child) {
           this.walkNode(child, ctx);
         }
