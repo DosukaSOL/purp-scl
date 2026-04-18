@@ -15,36 +15,36 @@ program MemecoinLauncher {
   pub instruction create_token(
     #[mut] signer creator,
     #[init] mint token_mint,
-    #[init] account config
+    #[init] account launch_config
   ) {
-    config.authority = creator;
-    config.name = "MyCoin";
-    config.symbol = "MYCN";
-    config.decimals = 9;
-    config.total_supply = 1000000000;
-    config.is_launched = false;
+    launch_config.authority = creator;
+    launch_config.name = "MyCoin";
+    launch_config.symbol = "MYCN";
+    launch_config.decimals = 9;
+    launch_config.total_supply = 1000000000;
+    launch_config.is_launched = false;
   }
 
   pub instruction launch(
     #[mut] signer authority,
-    #[mut] account config,
+    #[mut] account launch_config,
     #[mut] mint token_mint
   ) {
-    if config.authority != authority {
+    if launch_config.authority != authority {
       return;
     }
-    config.is_launched = true;
-    emit TokenLaunched(config.name, config.symbol, config.total_supply);
+    launch_config.is_launched = true;
+    emit TokenLaunched(launch_config.name, launch_config.symbol, launch_config.total_supply);
   }
 
   pub instruction mint_tokens(
     #[mut] signer authority,
-    #[mut] account config,
+    #[mut] account launch_config,
     #[mut] mint token_mint,
     #[mut] token recipient_ata,
     amount: u64
   ) {
-    if config.authority != authority {
+    if launch_config.authority != authority {
       return;
     }
   }

@@ -7,7 +7,7 @@
 import { parseArgs } from 'node:util';
 import { handleCommand } from './commands/index.js';
 
-const VERSION = '0.1.0';
+const VERSION = '1.2.0';
 
 const HELP = `
 \x1b[35m██████╗ ██╗   ██╗██████╗ ██████╗

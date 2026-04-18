@@ -23,14 +23,14 @@
     "compiler/src/**/*.ts",
     "cli/src/**/*.ts",
     "runtime/src/**/*.ts",
-    "stdlib/src/**/*.ts",
-    "tests/**/*.ts"
+    "stdlib/src/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "website",
     "templates",
-    "examples"
+    "examples",
+    "tests"
   ]
 }

@@ -1,85 +1,48 @@
 // Purp DAO Governance Template — On-chain proposal + voting system
-// Supports token-weighted voting, quorum, time-locked execution.
-
-import { governance } from "@purp/stdlib"
+// Token-weighted voting with quorum and time-locked execution.
 
 program DaoGovernance("DAOG1111111111111111111111111111111111111111") {
 
-  // ---- Accounts ----
-
   account GovernanceConfig {
-    admin: pubkey
-    governance_token_mint: pubkey
-    voting_period: u64          // Slots
-    cooldown_period: u64        // Execution delay (slots)
-    quorum_bps: u16             // Minimum participation (basis points)
-    approval_threshold_bps: u16 // Required 'for' % (basis points)
-    min_tokens_to_propose: u64
+    admin: pubkey,
+    governance_token_mint: pubkey,
+    voting_period: u64,
+    cooldown_period: u64,
+    quorum_bps: u16,
+    approval_threshold_bps: u16,
+    min_tokens_to_propose: u64,
     proposal_count: u64
   }
 
   account Proposal {
-    id: u64
-    proposer: pubkey
-    title: string
-    description_uri: string     // Off-chain description (IPFS/Arweave)
-    state: u8                   // 0=Active, 1=Passed, 2=Defeated, 3=Executed, 4=Cancelled
-    votes_for: u64
-    votes_against: u64
-    votes_abstain: u64
-    start_slot: u64
-    end_slot: u64
+    id: u64,
+    proposer: pubkey,
+    title: string,
+    description_uri: string,
+    state: u8,
+    votes_for: u64,
+    votes_against: u64,
+    votes_abstain: u64,
+    start_slot: u64,
+    end_slot: u64,
     executed_at: u64
   }
 
   account VoteRecord {
-    voter: pubkey
-    proposal: pubkey
-    choice: u8                  // 0=For, 1=Against, 2=Abstain
-    weight: u64
+    voter: pubkey,
+    proposal: pubkey,
+    choice: u8,
+    weight: u64,
     timestamp: u64
   }
 
-  account Treasury {
-    authority: pubkey
-    balance: u64
-  }
+  event ProposalCreated { id: u64, proposer: pubkey, title: string }
+  event VoteCast { proposal: u64, voter: pubkey, choice: u8, weight: u64 }
+  event ProposalExecuted { id: u64, executor: pubkey }
 
-  // ---- Events ----
-
-  event ProposalCreated {
-    id: u64
-    proposer: pubkey
-    title: string
-  }
-
-  event VoteCast {
-    proposal: u64
-    voter: pubkey
-    choice: u8
-    weight: u64
-  }
-
-  event ProposalExecuted {
-    id: u64
-    executor: pubkey
-  }
-
-  // ---- Errors ----
-
-  error GovErrors {
-    VotingClosed = "Voting period has ended"
-    AlreadyVoted = "This wallet has already voted"
-    InsufficientTokens = "Not enough governance tokens"
-    QuorumNotReached = "Quorum not reached"
-    ProposalNotPassed = "Proposal did not pass"
-    CooldownNotElapsed = "Execution cooldown not elapsed"
-    Unauthorized = "Not authorized"
-  }
-
-  // ---- Instructions ----
-
-  instruction initialize(
+  pub instruction initialize(
+    #[mut] signer admin,
+    #[init] account dao_config,
     governance_token_mint: pubkey,
     voting_period: u64,
     cooldown_period: u64,
@@ -87,144 +50,100 @@ program DaoGovernance("DAOG1111111111111111111111111111111111111111") {
     approval_threshold_bps: u16,
     min_tokens_to_propose: u64
   ) {
-    accounts {
-      config: GovernanceConfig
-      admin: Signer
-    }
-
-    config.admin = admin.key()
-    config.governance_token_mint = governance_token_mint
-    config.voting_period = voting_period
-    config.cooldown_period = cooldown_period
-    config.quorum_bps = quorum_bps
-    config.approval_threshold_bps = approval_threshold_bps
-    config.min_tokens_to_propose = min_tokens_to_propose
-    config.proposal_count = 0
+    dao_config.admin = admin;
+    dao_config.governance_token_mint = governance_token_mint;
+    dao_config.voting_period = voting_period;
+    dao_config.cooldown_period = cooldown_period;
+    dao_config.quorum_bps = quorum_bps;
+    dao_config.approval_threshold_bps = approval_threshold_bps;
+    dao_config.min_tokens_to_propose = min_tokens_to_propose;
+    dao_config.proposal_count = 0;
   }
 
-  instruction create_proposal(title: string, description_uri: string) {
-    accounts {
-      config: GovernanceConfig
-      proposal: Proposal
-      proposer: Signer
-      proposer_token_account: TokenAccount
-    }
+  pub instruction create_proposal(
+    #[mut] signer proposer,
+    #[mut] account dao_config,
+    #[init] account proposal,
+    title: string,
+    description_uri: string
+  ) {
+    let id = dao_config.proposal_count;
+    dao_config.proposal_count += 1;
 
-    require proposer_token_account.amount >= config.min_tokens_to_propose, GovErrors.InsufficientTokens
+    proposal.id = id;
+    proposal.proposer = proposer;
+    proposal.title = title;
+    proposal.description_uri = description_uri;
+    proposal.state = 0;
+    proposal.votes_for = 0;
+    proposal.votes_against = 0;
+    proposal.votes_abstain = 0;
+    proposal.executed_at = 0;
 
-    let id = config.proposal_count
-    config.proposal_count = config.proposal_count + 1
-
-    proposal.id = id
-    proposal.proposer = proposer.key()
-    proposal.title = title
-    proposal.description_uri = description_uri
-    proposal.state = 0  // Active
-    proposal.votes_for = 0
-    proposal.votes_against = 0
-    proposal.votes_abstain = 0
-    proposal.start_slot = clock.slot
-    proposal.end_slot = clock.slot + config.voting_period
-    proposal.executed_at = 0
-
-    emit ProposalCreated {
-      id: id,
-      proposer: proposer.key(),
-      title: title
-    }
+    emit ProposalCreated(id, proposer, title);
   }
 
-  instruction cast_vote(choice: u8) {
-    accounts {
-      config: GovernanceConfig
-      proposal: Proposal
-      vote_record: VoteRecord
-      voter: Signer
-      voter_token_account: TokenAccount
-    }
+  pub instruction cast_vote(
+    #[mut] signer voter,
+    #[mut] account proposal,
+    #[init] account vote_record,
+    choice: u8,
+    weight: u64
+  ) {
+    assert(proposal.state == 0, "Voting period has ended");
+    assert(weight > 0, "Insufficient governance tokens");
 
-    require proposal.state == 0, GovErrors.VotingClosed
-    require clock.slot <= proposal.end_slot, GovErrors.VotingClosed
+    vote_record.voter = voter;
+    vote_record.proposal = proposal.id;
+    vote_record.choice = choice;
+    vote_record.weight = weight;
 
-    let weight = voter_token_account.amount
-    require weight > 0, GovErrors.InsufficientTokens
-
-    vote_record.voter = voter.key()
-    vote_record.proposal = proposal.key()
-    vote_record.choice = choice
-    vote_record.weight = weight
-    vote_record.timestamp = clock.slot
-
-    match choice {
-      0 => proposal.votes_for = proposal.votes_for + weight
-      1 => proposal.votes_against = proposal.votes_against + weight
-      2 => proposal.votes_abstain = proposal.votes_abstain + weight
-      _ => assert false, "Invalid vote choice"
-    }
-
-    emit VoteCast {
-      proposal: proposal.id,
-      voter: voter.key(),
-      choice: choice,
-      weight: weight
-    }
-  }
-
-  instruction finalize_proposal() {
-    accounts {
-      config: GovernanceConfig
-      proposal: Proposal
-      finalizer: Signer
-    }
-
-    require proposal.state == 0, GovErrors.VotingClosed
-    require clock.slot > proposal.end_slot, GovErrors.VotingClosed
-
-    let total = proposal.votes_for + proposal.votes_against + proposal.votes_abstain
-    let voted_total = proposal.votes_for + proposal.votes_against
-
-    // Check quorum and approval threshold
-    if voted_total > 0 {
-      let approval_bps = proposal.votes_for * 10000 / voted_total
-      if approval_bps >= config.approval_threshold_bps as u64 {
-        proposal.state = 1  // Passed
+    if choice == 0 {
+      proposal.votes_for += weight;
+    } else {
+      if choice == 1 {
+        proposal.votes_against += weight;
       } else {
-        proposal.state = 2  // Defeated
+        proposal.votes_abstain += weight;
+      }
+    }
+
+    emit VoteCast(proposal.id, voter, choice, weight);
+  }
+
+  pub instruction finalize_proposal(
+    #[mut] account dao_config,
+    #[mut] account proposal
+  ) {
+    assert(proposal.state == 0, "Proposal already finalized");
+    let voted_total = proposal.votes_for + proposal.votes_against;
+    if voted_total > 0 {
+      let approval_bps = proposal.votes_for * 10000 / voted_total;
+      if approval_bps >= dao_config.approval_threshold_bps as u64 {
+        proposal.state = 1;
+      } else {
+        proposal.state = 2;
       }
     } else {
-      proposal.state = 2    // Defeated (no votes)
+      proposal.state = 2;
     }
   }
 
-  instruction execute_proposal() {
-    accounts {
-      config: GovernanceConfig
-      proposal: Proposal
-      executor: Signer
-    }
-
-    require proposal.state == 1, GovErrors.ProposalNotPassed
-    require clock.slot >= proposal.end_slot + config.cooldown_period, GovErrors.CooldownNotElapsed
-
-    proposal.state = 3  // Executed
-    proposal.executed_at = clock.slot
-
-    emit ProposalExecuted {
-      id: proposal.id,
-      executor: executor.key()
-    }
+  pub instruction execute_proposal(
+    #[mut] signer executor,
+    #[mut] account proposal
+  ) {
+    assert(proposal.state == 1, "Proposal did not pass");
+    proposal.state = 3;
+    emit ProposalExecuted(proposal.id, executor);
   }
 
-  instruction cancel_proposal() {
-    accounts {
-      config: GovernanceConfig
-      proposal: Proposal
-      proposer: Signer
-    }
-
-    require proposal.proposer == proposer.key(), GovErrors.Unauthorized
-    require proposal.state == 0, GovErrors.VotingClosed
-
-    proposal.state = 4  // Cancelled
+  pub instruction cancel_proposal(
+    #[mut] signer proposer,
+    #[mut] account proposal
+  ) {
+    assert(proposal.proposer == proposer, "Not authorized");
+    assert(proposal.state == 0, "Proposal already finalized");
+    proposal.state = 4;
   }
 }

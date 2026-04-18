@@ -6,7 +6,7 @@ program PdaUsage {
   account UserVault {
     owner: pubkey,
     balance: u64,
-    bump: u8
+    bump_seed: u8
   }
 
   account GlobalCounter {
@@ -17,11 +17,11 @@ program PdaUsage {
   pub instruction create_vault(
     #[mut] signer user,
     #[init] account vault,  // PDA: seeds = ["vault", user]
-    bump: u8
+    bump_seed: u8
   ) {
     vault.owner = user;
     vault.balance = 0;
-    vault.bump = bump;
+    vault.bump_seed = bump_seed;
     emit VaultCreated(user);
   }
 

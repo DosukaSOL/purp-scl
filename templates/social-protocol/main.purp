@@ -1,275 +1,146 @@
 // Purp Social Protocol Template — On-chain social app
-// Profiles, posts, follows, likes, tipping.
-
-import { social } from "@purp/stdlib"
+// Profiles, posts, follows, likes, and tipping.
 
 program SocialProtocol("SOCL1111111111111111111111111111111111111111") {
 
-  // ---- Accounts ----
-
   account Profile {
-    authority: pubkey
-    username: string
-    display_name: string
-    avatar_uri: string
-    bio: string
-    followers: u32
-    following: u32
-    post_count: u32
-    reputation: u64
+    owner: pubkey,
+    username: string,
+    bio: string,
+    avatar_uri: string,
+    post_count: u64,
+    follower_count: u64,
+    following_count: u64,
     created_at: i64
   }
 
   account Post {
-    author: pubkey
-    content: string             // Short on-chain text (max 280 chars)
-    content_uri: string         // Extended content (Arweave/IPFS)
-    media_uri: string           // Image/video URI
-    reply_to: pubkey            // Zero = not a reply
-    likes: u32
-    replies: u32
-    reposts: u32
-    tips_received: u64          // Total tips in lamports
-    created_at: i64
-    tags: string                // Comma-separated tags
+    author: pubkey,
+    id: u64,
+    content: string,
+    media_uri: string,
+    likes: u64,
+    reposts: u64,
+    timestamp: i64
   }
 
-  account FollowRelation {
-    follower: pubkey
-    following: pubkey
+  account Follow {
+    follower: pubkey,
+    following: pubkey,
     created_at: i64
   }
 
-  account Reaction {
-    user: pubkey
-    post: pubkey
-    kind: u8                    // 0=Like, 1=Love, 2=Fire
-    created_at: i64
-  }
-
-  // ---- Events ----
-
-  event ProfileCreated {
-    user: pubkey
-    username: string
-  }
-
-  event PostPublished {
-    author: pubkey
-    post: pubkey
-    content: string
-  }
-
-  event Followed {
-    follower: pubkey
-    following: pubkey
-  }
-
-  event Unfollowed {
-    follower: pubkey
-    following: pubkey
-  }
-
-  event Liked {
-    user: pubkey
+  account Like {
+    user: pubkey,
     post: pubkey
   }
 
-  event Tipped {
-    sender: pubkey
-    receiver: pubkey
+  event ProfileCreated { owner: pubkey, username: string }
+  event PostCreated { author: pubkey, id: u64, content: string }
+  event Followed { follower: pubkey, following: pubkey }
+  event Unfollowed { follower: pubkey, following: pubkey }
+  event Liked { user: pubkey, post: pubkey }
+  event Tipped { sender: pubkey, recipient: pubkey, amount: u64 }
+
+  pub instruction create_profile(
+    #[mut] signer owner,
+    #[init] account profile,
+    username: string,
+    bio: string,
+    avatar_uri: string
+  ) {
+    profile.owner = owner;
+    profile.username = username;
+    profile.bio = bio;
+    profile.avatar_uri = avatar_uri;
+    profile.post_count = 0;
+    profile.follower_count = 0;
+    profile.following_count = 0;
+
+    emit ProfileCreated(owner, username);
+  }
+
+  pub instruction update_profile(
+    #[mut] signer owner,
+    #[mut] account profile,
+    bio: string,
+    avatar_uri: string
+  ) {
+    assert(profile.owner == owner, "Not authorized");
+    profile.bio = bio;
+    profile.avatar_uri = avatar_uri;
+  }
+
+  pub instruction create_post(
+    #[mut] signer author,
+    #[mut] account profile,
+    #[init] account post,
+    content: string,
+    media_uri: string
+  ) {
+    assert(profile.owner == author, "Not profile owner");
+
+    post.author = author;
+    post.id = profile.post_count;
+    post.content = content;
+    post.media_uri = media_uri;
+    post.likes = 0;
+    post.reposts = 0;
+    profile.post_count += 1;
+
+    emit PostCreated(author, post.id, content);
+  }
+
+  pub instruction follow_user(
+    #[mut] signer follower,
+    #[mut] account follower_profile,
+    #[mut] account following_profile,
+    #[init] account follow_record,
+    target: pubkey
+  ) {
+    assert(follower_profile.owner == follower, "Not your profile");
+    assert(target != follower, "Cannot follow yourself");
+
+    follow_record.follower = follower;
+    follow_record.following = target;
+    follower_profile.following_count += 1;
+    following_profile.follower_count += 1;
+
+    emit Followed(follower, target);
+  }
+
+  pub instruction unfollow_user(
+    #[mut] signer follower,
+    #[mut] account follower_profile,
+    #[mut] account following_profile,
+    target: pubkey
+  ) {
+    assert(follower_profile.owner == follower, "Not your profile");
+    follower_profile.following_count -= 1;
+    following_profile.follower_count -= 1;
+
+    emit Unfollowed(follower, target);
+  }
+
+  pub instruction like_post(
+    #[mut] signer user,
+    #[mut] account post,
+    #[init] account like_record
+  ) {
+    like_record.user = user;
+    like_record.post = post.author;
+    post.likes += 1;
+
+    emit Liked(user, post.author);
+  }
+
+  pub instruction tip_creator(
+    #[mut] signer sender,
+    recipient: pubkey,
     amount: u64
-  }
-
-  // ---- Errors ----
-
-  error SocialErrors {
-    UsernameTaken = "Username is already taken"
-    UsernameTooShort = "Username must be at least 3 characters"
-    UsernameTooLong = "Username must be at most 20 characters"
-    ContentTooLong = "Post content exceeds maximum length"
-    AlreadyFollowing = "Already following this user"
-    NotFollowing = "Not following this user"
-    CannotFollowSelf = "Cannot follow yourself"
-    AlreadyReacted = "Already reacted to this post"
-    InsufficientFunds = "Insufficient funds for tip"
-    Unauthorized = "Not authorized"
-  }
-
-  // ---- Instructions ----
-
-  instruction create_profile(username: string, display_name: string, avatar_uri: string, bio: string) {
-    accounts {
-      profile: Profile
-      user: Signer
-    }
-
-    require username.len() >= 3, SocialErrors.UsernameTooShort
-    require username.len() <= 20, SocialErrors.UsernameTooLong
-
-    profile.authority = user.key()
-    profile.username = username
-    profile.display_name = display_name
-    profile.avatar_uri = avatar_uri
-    profile.bio = bio
-    profile.followers = 0
-    profile.following = 0
-    profile.post_count = 0
-    profile.reputation = 0
-    profile.created_at = clock.timestamp
-
-    emit ProfileCreated {
-      user: user.key(),
-      username: username
-    }
-  }
-
-  instruction update_profile(display_name: string, avatar_uri: string, bio: string) {
-    accounts {
-      profile: Profile
-      user: Signer
-    }
-
-    require profile.authority == user.key(), SocialErrors.Unauthorized
-
-    profile.display_name = display_name
-    profile.avatar_uri = avatar_uri
-    profile.bio = bio
-  }
-
-  instruction create_post(content: string, content_uri: string, media_uri: string, tags: string) {
-    accounts {
-      post: Post
-      profile: Profile
-      author: Signer
-    }
-
-    require profile.authority == author.key(), SocialErrors.Unauthorized
-    require content.len() <= 280, SocialErrors.ContentTooLong
-
-    post.author = author.key()
-    post.content = content
-    post.content_uri = content_uri
-    post.media_uri = media_uri
-    post.reply_to = pubkey!("11111111111111111111111111111111")
-    post.likes = 0
-    post.replies = 0
-    post.reposts = 0
-    post.tips_received = 0
-    post.created_at = clock.timestamp
-    post.tags = tags
-
-    profile.post_count = profile.post_count + 1
-
-    emit PostPublished {
-      author: author.key(),
-      post: post.key(),
-      content: content
-    }
-  }
-
-  instruction reply_to_post(content: string, parent_post: pubkey) {
-    accounts {
-      post: Post
-      parent: Post
-      profile: Profile
-      author: Signer
-    }
-
-    require profile.authority == author.key(), SocialErrors.Unauthorized
-    require content.len() <= 280, SocialErrors.ContentTooLong
-
-    post.author = author.key()
-    post.content = content
-    post.reply_to = parent_post
-    post.likes = 0
-    post.replies = 0
-    post.reposts = 0
-    post.tips_received = 0
-    post.created_at = clock.timestamp
-
-    parent.replies = parent.replies + 1
-    profile.post_count = profile.post_count + 1
-  }
-
-  instruction follow(target: pubkey) {
-    accounts {
-      relation: FollowRelation
-      follower_profile: Profile
-      target_profile: Profile
-      user: Signer
-    }
-
-    require user.key() != target, SocialErrors.CannotFollowSelf
-
-    relation.follower = user.key()
-    relation.following = target
-    relation.created_at = clock.timestamp
-
-    follower_profile.following = follower_profile.following + 1
-    target_profile.followers = target_profile.followers + 1
-
-    emit Followed {
-      follower: user.key(),
-      following: target
-    }
-  }
-
-  instruction unfollow() {
-    accounts {
-      relation: FollowRelation
-      follower_profile: Profile
-      target_profile: Profile
-      user: Signer
-    }
-
-    require relation.follower == user.key(), SocialErrors.Unauthorized
-
-    follower_profile.following = follower_profile.following - 1
-    target_profile.followers = target_profile.followers - 1
-
-    emit Unfollowed {
-      follower: user.key(),
-      following: relation.following
-    }
-  }
-
-  instruction like_post(kind: u8) {
-    accounts {
-      reaction: Reaction
-      post: Post
-      user: Signer
-    }
-
-    reaction.user = user.key()
-    reaction.post = post.key()
-    reaction.kind = kind
-    reaction.created_at = clock.timestamp
-
-    post.likes = post.likes + 1
-
-    emit Liked {
-      user: user.key(),
-      post: post.key()
-    }
-  }
-
-  instruction tip_author(amount: u64) {
-    accounts {
-      post: Post
-      author_profile: Profile
-      tipper: Signer
-    }
-
-    require amount > 0, SocialErrors.InsufficientFunds
-
-    post.tips_received = post.tips_received + amount
-    author_profile.reputation = author_profile.reputation + 5
-
-    emit Tipped {
-      sender: tipper.key(),
-      receiver: post.author,
-      amount: amount
-    }
+  ) {
+    assert(amount > 0, "Zero tip");
+    assert(recipient != sender, "Cannot tip yourself");
+    emit Tipped(sender, recipient, amount);
   }
 }

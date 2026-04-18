@@ -30,97 +30,17 @@ program AnalyticsDashboard {
   pub instruction track_event(
     #[mut] signer source,
     #[mut] account tracker,
-    #[init] account event,
+    #[init] account analytics_event,
     event_type: string,
     value: u64
   ) {
-    event.tracker = tracker;
-    event.event_type = event_type;
-    event.value = value;
-    event.source = source;
+    analytics_event.tracker = tracker;
+    analytics_event.event_type = event_type;
+    analytics_event.value = value;
+    analytics_event.source = source;
     tracker.event_count += 1;
     emit EventTracked(event_type, value, source);
   }
 
   event EventTracked { event_type: string, value: u64, source: pubkey }
-}
-
-client {
-  async fn getTracker(program): Tracker {
-    return await program.account.Tracker.fetch();
-  }
-
-  async fn getEvents(program): AnalyticsEvent[] {
-    return await program.account.AnalyticsEvent.all();
-  }
-
-  async fn getEventsByType(program, event_type: string): AnalyticsEvent[] {
-    let all = await program.account.AnalyticsEvent.all();
-    return all.filter(e => e.event_type == event_type);
-  }
-}
-
-frontend {
-  page "/" {
-    component Dashboard {
-      state tracker = null;
-      state events = [];
-      state filter = "all";
-
-      on_mount {
-        tracker = await client.getTracker(program);
-        events = await client.getEvents(program);
-      }
-
-      render {
-        <div class="dashboard">
-          <header>
-            <h1>"Analytics Dashboard"</h1>
-            <WalletButton />
-          </header>
-
-          <div class="stats-row">
-            <StatCard label="Total Events" value={tracker.event_count} />
-            <StatCard label="Unique Users" value={tracker.user_count} />
-          </div>
-
-          <div class="chart-area">
-            <BarChart data={events} />
-          </div>
-
-          <div class="event-list">
-            <h2>"Recent Events"</h2>
-            {events.map(e =>
-              <EventRow event={e} />
-            )}
-          </div>
-        </div>
-      }
-    }
-
-    component StatCard(label: string, value: u64) {
-      render {
-        <div class="stat-card">
-          <span class="label">{label}</span>
-          <span class="value">{value}</span>
-        </div>
-      }
-    }
-
-    component EventRow(event: AnalyticsEvent) {
-      render {
-        <div class="event-row">
-          <span>{event.event_type}</span>
-          <span>{event.value}</span>
-          <span>{event.timestamp}</span>
-        </div>
-      }
-    }
-  }
-}
-
-config {
-  name = "analytics-dashboard"
-  version = "0.1.0"
-  network = "devnet"
 }

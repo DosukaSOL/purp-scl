@@ -1,8 +1,7 @@
-// Fullstack dApp Template — On-chain + Client + Frontend
+// Fullstack dApp Template — Marketplace
+// On-chain program; pair with Purp's TypeScript and IDL outputs for a frontend.
 
-import { Token, Wallet } from "@purp/stdlib";
-
-program FullstackDapp {
+program FullstackDapp("FULL1111111111111111111111111111111111111111") {
 
   account AppState {
     authority: pubkey,
@@ -18,102 +17,55 @@ program FullstackDapp {
     created_at: i64
   }
 
+  event ItemCreated { creator: pubkey, title: string, price: u64 }
+  event ItemPurchased { buyer: pubkey, title: string, price: u64 }
+  event ItemDelisted { creator: pubkey, title: string }
+
   pub instruction initialize(
     #[mut] signer authority,
-    #[init] account state,
+    #[init] account app_state,
     treasury: pubkey
   ) {
-    state.authority = authority;
-    state.item_count = 0;
-    state.treasury = treasury;
+    app_state.authority = authority;
+    app_state.item_count = 0;
+    app_state.treasury = treasury;
   }
 
   pub instruction create_item(
     #[mut] signer creator,
-    #[mut] account state,
+    #[mut] account app_state,
     #[init] account item,
     title: string,
     price: u64
   ) {
+    assert(price > 0, "Price must be positive");
     item.creator = creator;
     item.title = title;
     item.price = price;
     item.is_listed = true;
-    state.item_count += 1;
+    app_state.item_count += 1;
+
     emit ItemCreated(creator, title, price);
   }
 
   pub instruction purchase_item(
     #[mut] signer buyer,
-    #[mut] account item,
-    #[mut] account state
+    #[mut] account item
   ) {
     assert(item.is_listed, "Item not listed");
     item.is_listed = false;
+
     emit ItemPurchased(buyer, item.title, item.price);
   }
 
-  event ItemCreated { creator: pubkey, title: string, price: u64 }
-  event ItemPurchased { buyer: pubkey, title: string, price: u64 }
-}
+  pub instruction delist_item(
+    #[mut] signer creator,
+    #[mut] account item
+  ) {
+    assert(item.creator == creator, "Not item creator");
+    assert(item.is_listed, "Already delisted");
+    item.is_listed = false;
 
-client {
-  async fn getItems(program): Item[] {
-    return await program.account.Item.all();
+    emit ItemDelisted(creator, item.title);
   }
-
-  async fn getState(program): AppState {
-    return await program.account.AppState.fetch();
-  }
-}
-
-frontend {
-  page "/" {
-    component App {
-      state items = [];
-      state connected = false;
-
-      on_mount {
-        items = await client.getItems(program);
-      }
-
-      render {
-        <div class="app">
-          <header>
-            <h1>"Purp Marketplace"</h1>
-            <WalletButton on_connect={ connected = true } />
-          </header>
-          <main>
-            <ItemGrid items={items} />
-          </main>
-        </div>
-      }
-    }
-
-    component ItemGrid(items: Item[]) {
-      render {
-        <div class="grid">
-          {items.map(item => <ItemCard item={item} />)}
-        </div>
-      }
-    }
-
-    component ItemCard(item: Item) {
-      render {
-        <div class="card">
-          <h3>{item.title}</h3>
-          <p>{item.price} " SOL"</p>
-          <button on_click={ client.purchaseItem(item) }>
-            "Buy Now"
-          </button>
-        </div>
-      }
-    }
-  }
-}
-
-config {
-  name = "fullstack-dapp"
-  version = "0.1.0"
-  network = "devnet"
 }

@@ -23,68 +23,68 @@ program BotContract {
 
   pub instruction initialize_bot(
     #[mut] signer owner,
-    #[init] account config,
+    #[init] account bot_config,
     max_trade_size: u64,
     slippage_bps: u16
   ) {
-    config.owner = owner;
-    config.is_active = true;
-    config.max_trade_size = max_trade_size;
-    config.slippage_bps = slippage_bps;
-    config.trade_count = 0;
+    bot_config.owner = owner;
+    bot_config.is_active = true;
+    bot_config.max_trade_size = max_trade_size;
+    bot_config.slippage_bps = slippage_bps;
+    bot_config.trade_count = 0;
     emit BotInitialized(owner, max_trade_size);
   }
 
   pub instruction execute_trade(
     #[mut] signer owner,
-    #[mut] account config,
+    #[mut] account bot_config,
     #[init] account log,
     token_in: pubkey,
     token_out: pubkey,
     amount_in: u64,
     min_amount_out: u64
   ) {
-    assert(config.owner == owner, "Not bot owner");
-    assert(config.is_active, "Bot is paused");
-    assert(amount_in <= config.max_trade_size, "Exceeds max trade size");
+    assert(bot_config.owner == owner, "Not bot owner");
+    assert(bot_config.is_active, "Bot is paused");
+    assert(amount_in <= bot_config.max_trade_size, "Exceeds max trade size");
 
-    log.bot = config;
+    log.bot = bot_config;
     log.token_in = token_in;
     log.token_out = token_out;
     log.amount_in = amount_in;
     log.amount_out = min_amount_out;
-    config.trade_count += 1;
+    bot_config.trade_count += 1;
 
     emit TradeExecuted(token_in, token_out, amount_in, min_amount_out);
   }
 
   pub instruction pause_bot(
     #[mut] signer owner,
-    #[mut] account config
+    #[mut] account bot_config
   ) {
-    assert(config.owner == owner, "Not bot owner");
-    config.is_active = false;
+    assert(bot_config.owner == owner, "Not bot owner");
+    bot_config.is_active = false;
     emit BotPaused(owner);
   }
 
   pub instruction resume_bot(
     #[mut] signer owner,
-    #[mut] account config
+    #[mut] account bot_config
   ) {
-    assert(config.owner == owner, "Not bot owner");
-    config.is_active = true;
+    assert(bot_config.owner == owner, "Not bot owner");
+    bot_config.is_active = true;
     emit BotResumed(owner);
   }
 
   pub instruction update_settings(
     #[mut] signer owner,
-    #[mut] account config,
+    #[mut] account bot_config,
     max_trade_size: u64,
     slippage_bps: u16
   ) {
-    assert(config.owner == owner, "Not bot owner");
-    config.max_trade_size = max_trade_size;
-    config.slippage_bps = slippage_bps;
+    assert(bot_config.owner == owner, "Not bot owner");
+    bot_config.max_trade_size = max_trade_size;
+    bot_config.slippage_bps = slippage_bps;
     emit SettingsUpdated(max_trade_size, slippage_bps);
   }
 
@@ -93,20 +93,4 @@ program BotContract {
   event BotPaused { owner: pubkey }
   event BotResumed { owner: pubkey }
   event SettingsUpdated { max_trade: u64, slippage: u16 }
-}
-
-client {
-  async fn getBotConfig(program, owner: pubkey): BotConfig {
-    return await program.account.BotConfig.fetch(owner);
-  }
-
-  async fn getTradeLogs(program, bot: pubkey): TradeLog[] {
-    return await program.account.TradeLog.all({ bot });
-  }
-}
-
-config {
-  name = "purp-bot"
-  version = "0.1.0"
-  network = "devnet"
 }

@@ -52,6 +52,15 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     let ast = parser.parse();
     if (debug) console.log(`[purp] AST has ${ast.body.length} top-level nodes`);
 
+    // Surface any errors collected during panic-mode recovery so that a file
+    // with parse errors does not silently produce a near-empty AST + a
+    // "successful" build that emits no program code.
+    const parseErrors = parser.getErrors();
+    if (parseErrors.length > 0) {
+      for (const err of parseErrors) diagnostics.add(err);
+      return { success: false, diagnostics };
+    }
+
     // Phase 2.5: Import Resolution
     if (options?.resolveImports !== false) {
       if (debug) console.log('[purp] Resolving imports...');

@@ -1,187 +1,131 @@
 // Purp DeFi AMM Template — Constant Product Market Maker
-// A basic DEX with swap, add/remove liquidity, and fee collection.
-
-import { defi } from "@purp/stdlib"
+// Basic DEX: swap, add liquidity, remove liquidity, fee collection.
 
 program AmmPool("AMMP1111111111111111111111111111111111111111") {
 
-  // ---- Accounts ----
-
   account Pool {
-    authority: pubkey
-    token_a_reserve: u64
-    token_b_reserve: u64
-    lp_supply: u64
-    fee_numerator: u64      // Swap fee (basis points)
-    fee_denominator: u64    // Always 10000
-    protocol_fee_accumulated_a: u64
-    protocol_fee_accumulated_b: u64
-    bump: u8
+    authority: pubkey,
+    token_a_mint: pubkey,
+    token_b_mint: pubkey,
+    token_a_reserve: u64,
+    token_b_reserve: u64,
+    lp_supply: u64,
+    fee_numerator: u64,
+    fee_denominator: u64
   }
 
-  account UserLP {
-    owner: pubkey
-    pool: pubkey
-    lp_balance: u64
+  account LpPosition {
+    owner: pubkey,
+    pool: pubkey,
+    shares: u64
   }
 
-  // ---- Events ----
+  event PoolInitialized { authority: pubkey, fee_numerator: u64 }
+  event LiquidityAdded { provider: pubkey, amount_a: u64, amount_b: u64, shares: u64 }
+  event LiquidityRemoved { provider: pubkey, shares: u64, amount_a: u64, amount_b: u64 }
+  event Swapped { user: pubkey, amount_in: u64, amount_out: u64 }
 
-  event Swapped {
-    user: pubkey
+  pub instruction initialize_pool(
+    #[mut] signer authority,
+    #[init] account pool,
+    token_a_mint: pubkey,
+    token_b_mint: pubkey,
+    fee_numerator: u64
+  ) {
+    assert(fee_numerator <= 1000, "Fee too high");
+
+    pool.authority = authority;
+    pool.token_a_mint = token_a_mint;
+    pool.token_b_mint = token_b_mint;
+    pool.token_a_reserve = 0;
+    pool.token_b_reserve = 0;
+    pool.lp_supply = 0;
+    pool.fee_numerator = fee_numerator;
+    pool.fee_denominator = 10000;
+
+    emit PoolInitialized(authority, fee_numerator);
+  }
+
+  pub instruction add_liquidity(
+    #[mut] signer provider,
+    #[mut] account pool,
+    #[init] account position,
+    amount_a: u64,
+    amount_b: u64
+  ) {
+    assert(amount_a > 0, "Zero amount");
+    assert(amount_b > 0, "Zero amount");
+
+    let shares = amount_a + amount_b;
+    pool.token_a_reserve += amount_a;
+    pool.token_b_reserve += amount_b;
+    pool.lp_supply += shares;
+
+    position.owner = provider;
+    position.pool = pool.authority;
+    position.shares = shares;
+
+    emit LiquidityAdded(provider, amount_a, amount_b, shares);
+  }
+
+  pub instruction remove_liquidity(
+    #[mut] signer provider,
+    #[mut] account pool,
+    #[mut] account position,
+    shares: u64
+  ) {
+    assert(position.owner == provider, "Not owner");
+    assert(shares > 0 && shares <= position.shares, "Invalid share amount");
+    assert(pool.lp_supply > 0, "Empty pool");
+
+    let amount_a = pool.token_a_reserve * shares / pool.lp_supply;
+    let amount_b = pool.token_b_reserve * shares / pool.lp_supply;
+
+    pool.token_a_reserve -= amount_a;
+    pool.token_b_reserve -= amount_b;
+    pool.lp_supply -= shares;
+    position.shares -= shares;
+
+    emit LiquidityRemoved(provider, shares, amount_a, amount_b);
+  }
+
+  pub instruction swap_a_for_b(
+    #[mut] signer user,
+    #[mut] account pool,
     amount_in: u64
-    amount_out: u64
-    is_a_to_b: bool
+  ) {
+    assert(amount_in > 0, "Zero input");
+    assert(pool.token_a_reserve > 0, "Empty pool");
+    assert(pool.token_b_reserve > 0, "Empty pool");
+
+    let fee = amount_in * pool.fee_numerator / pool.fee_denominator;
+    let amount_in_net = amount_in - fee;
+    let new_a = pool.token_a_reserve + amount_in_net;
+    let amount_out = pool.token_b_reserve - (pool.token_a_reserve * pool.token_b_reserve / new_a);
+
+    pool.token_a_reserve = new_a;
+    pool.token_b_reserve -= amount_out;
+
+    emit Swapped(user, amount_in, amount_out);
   }
 
-  event LiquidityAdded {
-    user: pubkey
-    deposit_a: u64
-    deposit_b: u64
-    lp_minted: u64
-  }
+  pub instruction swap_b_for_a(
+    #[mut] signer user,
+    #[mut] account pool,
+    amount_in: u64
+  ) {
+    assert(amount_in > 0, "Zero input");
+    assert(pool.token_a_reserve > 0, "Empty pool");
+    assert(pool.token_b_reserve > 0, "Empty pool");
 
-  event LiquidityRemoved {
-    user: pubkey
-    withdraw_a: u64
-    withdraw_b: u64
-    lp_burned: u64
-  }
+    let fee = amount_in * pool.fee_numerator / pool.fee_denominator;
+    let amount_in_net = amount_in - fee;
+    let new_b = pool.token_b_reserve + amount_in_net;
+    let amount_out = pool.token_a_reserve - (pool.token_a_reserve * pool.token_b_reserve / new_b);
 
-  // ---- Errors ----
+    pool.token_b_reserve = new_b;
+    pool.token_a_reserve -= amount_out;
 
-  error AmmErrors {
-    SlippageExceeded = "Output amount is less than minimum"
-    InsufficientLiquidity = "Not enough liquidity in the pool"
-    ZeroAmount = "Amount must be greater than zero"
-    InvalidFee = "Fee parameter out of range"
-  }
-
-  // ---- Instructions ----
-
-  instruction initialize_pool(fee_numerator: u64) {
-    accounts {
-      pool: Pool
-      authority: Signer
-    }
-
-    require fee_numerator <= 1000, AmmErrors.InvalidFee
-
-    pool.authority = authority.key()
-    pool.token_a_reserve = 0
-    pool.token_b_reserve = 0
-    pool.lp_supply = 0
-    pool.fee_numerator = fee_numerator
-    pool.fee_denominator = 10000
-
-    emit Swapped {
-      user: authority.key(),
-      amount_in: 0,
-      amount_out: 0,
-      is_a_to_b: true
-    }
-  }
-
-  instruction swap(amount_in: u64, minimum_out: u64, is_a_to_b: bool) {
-    accounts {
-      pool: Pool
-      user: Signer
-      token_a_account: TokenAccount
-      token_b_account: TokenAccount
-    }
-
-    require amount_in > 0, AmmErrors.ZeroAmount
-
-    // Constant product swap: dy = y * dx / (x + dx) after fee
-    let fee = amount_in * pool.fee_numerator / pool.fee_denominator
-    let amount_in_after_fee = amount_in - fee
-
-    let reserve_in = is_a_to_b ? pool.token_a_reserve : pool.token_b_reserve
-    let reserve_out = is_a_to_b ? pool.token_b_reserve : pool.token_a_reserve
-
-    let amount_out = reserve_out * amount_in_after_fee / (reserve_in + amount_in_after_fee)
-    require amount_out >= minimum_out, AmmErrors.SlippageExceeded
-    require amount_out < reserve_out, AmmErrors.InsufficientLiquidity
-
-    // Update reserves
-    if is_a_to_b {
-      pool.token_a_reserve = pool.token_a_reserve + amount_in
-      pool.token_b_reserve = pool.token_b_reserve - amount_out
-    } else {
-      pool.token_b_reserve = pool.token_b_reserve + amount_in
-      pool.token_a_reserve = pool.token_a_reserve - amount_out
-    }
-
-    emit Swapped {
-      user: user.key(),
-      amount_in: amount_in,
-      amount_out: amount_out,
-      is_a_to_b: is_a_to_b
-    }
-  }
-
-  instruction add_liquidity(max_a: u64, max_b: u64) {
-    accounts {
-      pool: Pool
-      user: Signer
-      user_lp: UserLP
-    }
-
-    require max_a > 0 && max_b > 0, AmmErrors.ZeroAmount
-
-    let lp_minted: u64 = 0
-    let deposit_a: u64 = 0
-    let deposit_b: u64 = 0
-
-    if pool.lp_supply == 0 {
-      // First deposit — use geometric mean
-      deposit_a = max_a
-      deposit_b = max_b
-      lp_minted = max_a  // Simplified; real impl uses sqrt(a*b)
-    } else {
-      // Proportional deposit
-      let ratio_a = max_a * pool.lp_supply / pool.token_a_reserve
-      let ratio_b = max_b * pool.lp_supply / pool.token_b_reserve
-      lp_minted = ratio_a < ratio_b ? ratio_a : ratio_b
-      deposit_a = pool.token_a_reserve * lp_minted / pool.lp_supply
-      deposit_b = pool.token_b_reserve * lp_minted / pool.lp_supply
-    }
-
-    pool.token_a_reserve = pool.token_a_reserve + deposit_a
-    pool.token_b_reserve = pool.token_b_reserve + deposit_b
-    pool.lp_supply = pool.lp_supply + lp_minted
-    user_lp.lp_balance = user_lp.lp_balance + lp_minted
-
-    emit LiquidityAdded {
-      user: user.key(),
-      deposit_a: deposit_a,
-      deposit_b: deposit_b,
-      lp_minted: lp_minted
-    }
-  }
-
-  instruction remove_liquidity(lp_amount: u64) {
-    accounts {
-      pool: Pool
-      user: Signer
-      user_lp: UserLP
-    }
-
-    require lp_amount > 0, AmmErrors.ZeroAmount
-
-    let withdraw_a = pool.token_a_reserve * lp_amount / pool.lp_supply
-    let withdraw_b = pool.token_b_reserve * lp_amount / pool.lp_supply
-
-    pool.token_a_reserve = pool.token_a_reserve - withdraw_a
-    pool.token_b_reserve = pool.token_b_reserve - withdraw_b
-    pool.lp_supply = pool.lp_supply - lp_amount
-    user_lp.lp_balance = user_lp.lp_balance - lp_amount
-
-    emit LiquidityRemoved {
-      user: user.key(),
-      withdraw_a: withdraw_a,
-      withdraw_b: withdraw_b,
-      lp_burned: lp_amount
-    }
+    emit Swapped(user, amount_in, amount_out);
   }
 }
